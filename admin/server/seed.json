@@ -7,7 +7,10 @@
     "fxclub.org": "fcil",
     "promo.fxclub.org": "fcil",
     "lbx.com": "lbx",
-    "promo.lbx.com": "lbx"
+    "promo.lbx.com": "lbx",
+    "localhost": "cysec",
+    "127.0.0.1": "cysec",
+    "popup-banner-platform-production.up.railway.app": "cysec"
   },
 
   "legal_texts": [
@@ -30,6 +33,27 @@
   ],
 
   "registration_domains": {
+    "localhost": {
+      "entity": "cysec",
+      "script_src": "https://lib.libertex.com/landing/js/landing-api.min.2.5.0.js",
+      "api_key": "88edce7bb9405e9a5462dc58fb2446b90d3cd3d8",
+      "fields": ["email", "password"],
+      "tealium": { "page_broker": "cysec", "page_language": "de", "page_system": "promo" }
+    },
+    "127.0.0.1": {
+      "entity": "cysec",
+      "script_src": "https://lib.libertex.com/landing/js/landing-api.min.2.5.0.js",
+      "api_key": "88edce7bb9405e9a5462dc58fb2446b90d3cd3d8",
+      "fields": ["email", "password"],
+      "tealium": { "page_broker": "cysec", "page_language": "de", "page_system": "promo" }
+    },
+    "popup-banner-platform-production.up.railway.app": {
+      "entity": "cysec",
+      "script_src": "https://lib.libertex.com/landing/js/landing-api.min.2.5.0.js",
+      "api_key": "88edce7bb9405e9a5462dc58fb2446b90d3cd3d8",
+      "fields": ["email", "password"],
+      "tealium": { "page_broker": "cysec", "page_language": "de", "page_system": "promo" }
+    },
     "libertex.com": {
       "entity": "cysec",
       "script_src": "https://lib.libertex.com/landing/js/landing-api.min.2.5.0.js",
