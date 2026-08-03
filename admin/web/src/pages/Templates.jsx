@@ -1,4 +1,7 @@
-const GALLERY_URL = 'http://localhost:8080/templates.html';
+// Dev serves this from the separate static harness (`npx serve` on :8080);
+// a real deployment serves it from admin/server's own /demo mount instead
+// (see admin/server/index.js), same-origin with this admin UI.
+const GALLERY_URL = import.meta.env.PROD ? '/demo/templates.html' : 'http://localhost:8080/templates.html';
 
 export default function Templates() {
   return (
@@ -9,7 +12,7 @@ export default function Templates() {
             <h2>Templates</h2>
             <p>
               Style guide for all six templates (§5) — rendered through the real SDK, not mockups.
-              Served by the separate static harness at <code>{GALLERY_URL}</code>; open it directly if this frame is blank.
+              Open <code>{GALLERY_URL}</code> directly if this frame is blank.
             </p>
           </div>
           <a className="btn btn-sm" href={GALLERY_URL} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>Open in new tab ↗</a>

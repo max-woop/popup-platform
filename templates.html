@@ -215,12 +215,18 @@
   // mean "don't auto-show anything"; renderInline() doesn't check this flag,
   // so previews still render normally).
   window.LxPopup.disabled = true;
+  // Local dev serves this page from a separate static harness (:8080) and
+  // the admin API from its own process (:8787) — two origins. A real
+  // deployment (admin/server serving this under /demo) is one origin, so a
+  // relative path is correct instead. :8080 is the one well-known
+  // "definitely a separate origin" case; anything else is same-origin.
+  var API_ORIGIN = location.port === '8080' ? 'http://localhost:8787' : '';
   window.LxPopup.config = {
     // Cache-busted only because this is a local static-file server under
     // active editing — a real CDN-cached config.json (§3) should absolutely
     // not do this.
     configUrl:  './config.json?t=' + Date.now(),
-    collectUrl: 'http://localhost:8787/v1/events',
+    collectUrl: API_ORIGIN + '/v1/events',
     dataLayer:  window.utag_data,
     env: 'dev'
   };

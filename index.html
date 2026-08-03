@@ -117,13 +117,22 @@
     language: 'en'
   };
 
+  // Local dev serves this page from a separate static harness (:8080) and
+  // the admin API from its own process (:8787) — two origins. A real
+  // deployment (admin/server serving this under /demo) is one origin, so
+  // the API is same-origin and a relative path is correct instead. :8080 is
+  // the one well-known "definitely a separate origin" case; anything else
+  // is assumed same-origin.
+  var API_ORIGIN = location.port === '8080' ? 'http://localhost:8787' : '';
+
   window.LxPopup = window.LxPopup || {};
   window.LxPopup.config = {
     configUrl:  './config.json',
     // Points at the real Collector built for §14 (admin/server/lib/collector.js).
-    // Requires that server running on :8787 and this page served from an
-    // origin in its allowlist (defaults include http://localhost:8080).
-    collectUrl: 'http://localhost:8787/v1/events',
+    // Requires that server reachable and this page served from an origin in
+    // its allowlist (defaults include http://localhost:8080; a real
+    // deployment sets COLLECTOR_ALLOWED_ORIGINS to its real domain).
+    collectUrl: API_ORIGIN + '/v1/events',
     dataLayer:  window.utag_data,
     env: 'dev'
   };
@@ -203,7 +212,7 @@
   function loadEvents() {
     var out = document.getElementById('events-out');
     out.textContent = 'loading…';
-    fetch('http://localhost:8787/api/recent-events')
+    fetch(API_ORIGIN + '/api/recent-events')
       .then(function (r) { return r.json(); })
       .then(function (events) {
         if (!events.length) { out.textContent = '(none yet — trigger a popup, click it, then "Force flush now")'; return; }
@@ -211,7 +220,7 @@
           return e.received_at + '  ' + e.type + '  ' + e.popup_id + '  ' + e.device;
         }).join('\n');
       })
-      .catch(function (err) { out.textContent = 'Collector unreachable: ' + err.message + '\n(is admin/server running on :8787?)'; });
+      .catch(function (err) { out.textContent = 'Collector unreachable: ' + err.message + '\n(is admin/server running?)'; });
   }
 
   document.getElementById('refresh-events').addEventListener('click', loadEvents);

@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "description": "Phase 0 spike for the Libertex Popup Platform SDK — see README.md.",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
-    "build": "node build.js",
+    "build": "node build.js && npm install --prefix admin/server && npm install --prefix admin/web && npm run build --prefix admin/web",
+    "start": "node admin/server/index.js",
     "test": "node test.js"
   },
   "devDependencies": {
