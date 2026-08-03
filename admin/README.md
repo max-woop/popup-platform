@@ -12,7 +12,8 @@ admin/
             origin allowlist, rate limit, payload cap, dedup).
             Popups + raw events live in SQLite (data/ingestion.db); everything else
             (legal texts, registration domains, consent texts, settings, audit log)
-            is a JSON file store (data/db.json, seeded from data/seed.json).
+            is a JSON file store (data/db.json, seeded from ../seed.json —
+            kept outside data/ so it survives a Railway Volume mounted there).
             index.js just wires an Express app together — the actual routes
             live one file per resource in routes/ (popups, targeting, stats,
             registration, legalTexts, settings, ingestion), sharing

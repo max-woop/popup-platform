@@ -7,7 +7,8 @@ const crypto = require('crypto');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'ingestion.db');
-const SEED_PATH = path.join(DATA_DIR, 'seed.json');
+// Sibling of data/, not inside it — see the same note in store.js.
+const SEED_PATH = path.join(__dirname, '..', 'seed.json');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 

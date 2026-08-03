@@ -4,7 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'db.json');
-const SEED_PATH = path.join(__dirname, '..', 'data', 'seed.json');
+// Sibling of data/, not inside it — data/ is where a Railway Volume gets
+// mounted for persistence, and Volumes shadow whatever's baked into the
+// image at that path. seed.json must survive outside the mount to be
+// readable on a fresh (empty) volume.
+const SEED_PATH = path.join(__dirname, '..', 'seed.json');
 
 function load() {
   if (!fs.existsSync(DB_PATH)) {

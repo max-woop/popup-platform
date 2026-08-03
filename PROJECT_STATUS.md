@@ -68,7 +68,11 @@ admin/
                            legalTexts, settings, ingestion), sharing
                            requireRole/audit/popup(Summary|Detail)/republish
                            from lib/adminHelpers.js
-    data/seed.json          seed data for both the JSON store and SQLite
+    seed.json                seed data for both the JSON store and SQLite —
+                              lives outside data/ on purpose: a Railway
+                              Volume mounted at data/ shadows whatever's
+                              baked into the image at that path, so seed
+                              data has to sit next to it, not inside it
     data/db.json            JSON store (legal texts, registration domains,
                              consent texts, settings, audit log) — mutable,
                              regenerated from seed.json by /api/dev/reset
