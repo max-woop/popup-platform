@@ -1,0 +1,7 @@
+# better-sqlite3 (admin/server) is a native addon. Its prebuilt binary isn't
+# picked up in this build image, so npm falls back to compiling it from
+# source via node-gyp — which needs Python and a C/C++ toolchain that the
+# default Nixpacks Node image doesn't include. "..." preserves the
+# auto-detected Node package (from engines.node in package.json).
+[phases.setup]
+nixPkgs = ['...', 'python3', 'gcc', 'gnumake']
