@@ -1,5 +1,7 @@
 'use strict';
 
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 
@@ -56,6 +58,35 @@ app.use('/v1', ingestionRoutes);
 app.get('/dist/config.json', function (req, res) {
   res.sendFile(publisher.CONFIG_PATH);
 });
+
+// Deployment (e.g. Railway) runs this as the single web process, so it also
+// serves the built admin UI and the root-level SDK test harness — locally
+// these are served by separate dev servers instead (admin/web's Vite dev
+// server, `npx serve` for the harness), so both mounts are guarded and
+// silently absent until `npm run build` has produced them.
+const ADMIN_WEB_DIST = path.join(__dirname, '..', 'web', 'dist');
+const REPO_ROOT = path.join(__dirname, '..', '..');
+
+if (fs.existsSync(ADMIN_WEB_DIST)) {
+  app.use(express.static(ADMIN_WEB_DIST));
+}
+
+// Explicit allowlist rather than express.static(REPO_ROOT) — the repo root
+// also holds node_modules, .git, package.json, etc. that must never be served.
+const DEMO_FILES = ['index.html', 'templates.html', 'sdk.js', 'tokens.css', 'config.json', 'mock-landing-api.js'];
+DEMO_FILES.forEach(function (file) {
+  app.get('/demo/' + file, function (req, res) {
+    res.sendFile(path.join(REPO_ROOT, file));
+  });
+});
+
+// SPA catch-all for the React Router admin UI — must come last so it never
+// shadows the /api, /v1, /dist, or /demo routes above.
+if (fs.existsSync(ADMIN_WEB_DIST)) {
+  app.get('*', function (req, res) {
+    res.sendFile(path.join(ADMIN_WEB_DIST, 'index.html'));
+  });
+}
 
 publisher.publish(store.load());
 
