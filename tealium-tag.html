@@ -1,0 +1,72 @@
+<!--
+  Libertex Popup Platform — Tealium iQ loader
+  Spec §7.1
+
+  WHERE THIS GOES
+    Tealium iQ → Tags → Add Tag → "Custom Container" (or JavaScript Code).
+    Paste everything below. Save and publish to the target profile.
+
+  LOAD RULE (§7.2)
+    Keep it coarse — fire on all promo pages. All page targeting is done in
+    the popup admin UI, so that there is one source of truth. Splitting rules
+    across Tealium and the platform makes "why isn't my popup showing"
+    unanswerable.
+
+    Suppress the tag only on:
+      · account / authentication pages
+      · deposit and payment flows
+      · any page under a CSP that blocks the script
+
+  CONSENT (§7.4, §11.1)
+    If Tealium Consent Manager is in use, gate this tag on the agreed
+    category. Do NOT implement consent logic in the SDK.
+
+  BEFORE PUBLISHING
+    1. Replace the cdn/collect hostnames with the real ones.
+    2. Replace the integrity hash with the value from dist/sdk.js.sri.
+    3. Set env to match the Tealium profile (dev / qa / prod).
+-->
+<script type="text/javascript">
+(function () {
+  // Guard against double-fire (Tealium can evaluate a tag more than once).
+  if (window.__lxPopupLoaded) return;
+  window.__lxPopupLoaded = true;
+
+  window.LxPopup = window.LxPopup || {};
+
+  // Global kill switch. Set this true in a Tealium extension to stop every
+  // popup instantly, with no code deploy (§7.4, §15.2).
+  // window.LxPopup.disabled = true;
+
+  window.LxPopup.config = {
+    configUrl:  'https://cdn.libertex.com/popups/v1/config.json',
+    collectUrl: 'https://collect.libertex.com/v1/events',
+    dataLayer:  window.utag_data || {},
+    env: 'prod'
+  };
+
+  var s = document.createElement('script');
+  s.src = 'https://cdn.libertex.com/popups/v1/sdk.js';
+  s.async = true;
+  s.crossOrigin = 'anonymous';
+  s.integrity = 'sha384-REPLACE_WITH_VALUE_FROM_dist/sdk.js.sri';
+  s.onerror = function () {
+    // Fail silent — the page is unaffected if the SDK cannot load (§8.5).
+    if (window.console && console.debug) console.debug('[lx-popup] sdk failed to load');
+  };
+  document.head.appendChild(s);
+})();
+</script>
+
+<!--
+  SPA PAGES ONLY (§7.5)
+  If any promo pages are single-page apps, add a Tealium extension scoped to
+  utag.view that calls:
+
+      window.LxPopup && window.LxPopup.pageView({
+        url: location.href,
+        dataLayer: window.utag_data
+      });
+
+  This resets per-page-view state and re-arms triggers on virtual navigation.
+-->

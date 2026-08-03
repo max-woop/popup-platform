@@ -1,0 +1,222 @@
+{
+  "version": 1,
+  "generated_at": "2026-07-30T09:00:00Z",
+
+  "global": {
+    "max_per_pageview": 1,
+    "max_per_session": 2
+  },
+
+  "entity_domains": {
+    "libertex.com": "cysec",
+    "promo.libertex.com": "cysec",
+    "libertex.org": "fcil",
+    "promo.libertex.org": "fcil",
+    "fxclub.org": "fcil",
+    "promo.fxclub.org": "fcil",
+    "lbx.com": "lbx",
+    "promo.lbx.com": "lbx",
+
+    "localhost": "cysec",
+    "127.0.0.1": "cysec"
+  },
+
+  "legal": {
+    "cysec": {
+      "_default": {
+        "v": 7,
+        "required": true,
+        "text": "84% of retail CFD accounts lose money"
+      }
+    },
+    "fcil": {
+      "_default": {
+        "v": 3,
+        "required": true,
+        "text": "PLACEHOLDER — FCIL risk warning wording required from Compliance"
+      }
+    },
+    "lbx": {
+      "_default": {
+        "v": 1,
+        "required": true,
+        "text": "Trading financial instruments is a risky activity and may result in both profits and/or losses. The amount of possible losses is limited by the amount of the deposit."
+      }
+    }
+  },
+
+  "registration_domains": {
+    "localhost": {
+      "entity": "cysec",
+      "script_src": "./mock-landing-api.js",
+      "api_key": "local-dev-mock-not-a-real-key",
+      "fields": ["email", "password"],
+      "tealium": { "page_broker": "cysec", "page_language": "en", "page_system": "promo" }
+    },
+    "127.0.0.1": {
+      "entity": "cysec",
+      "script_src": "./mock-landing-api.js",
+      "api_key": "local-dev-mock-not-a-real-key",
+      "fields": ["email", "password"],
+      "tealium": { "page_broker": "cysec", "page_language": "en", "page_system": "promo" }
+    }
+  },
+
+  "consent_texts": {
+    "cysec": {
+      "en": {
+        "v": 1,
+        "text_template": "By registering an account I confirm I am at least 18 years old and that I agree to the {privacy} and the {terms}.",
+        "links": {
+          "privacy": { "label": "Privacy Policy", "url": "https://libertex.com/docs/en/privacy-and-cookies-policy.pdf" },
+          "terms":   { "label": "Terms and Conditions", "url": "https://libertex.com/docs/en/list-of-documents.pdf" }
+        }
+      }
+    }
+  },
+
+  "popups": [
+    {
+      "id": "promo-summer-2026",
+      "template": "modal_media",
+      "status": "live",
+      "priority": 50,
+      "starts_at": "2026-07-01T00:00:00Z",
+      "ends_at": "2026-09-30T23:59:59Z",
+      "devices": ["desktop", "tablet", "mobile"],
+      "trigger": { "type": "delay", "value": 2000 },
+      "frequency": { "max_impressions": 2, "per": "session", "dismiss_ttl_days": 14 },
+      "targeting": [
+        [ { "d": "path", "op": "starts_with", "v": "/" } ]
+      ],
+      "content": {
+        "theme": "white-black",
+        "show_logo": true,
+        "heading": "Markets move fast",
+        "subheading": "Trade over 300 instruments from one account.",
+        "body": "Open an account in minutes and start trading on desktop or mobile.",
+        "cta_label": "Open an account",
+        "cta_url": "https://libertex.com/signup",
+        "legal": { "mode": "auto" },
+        "overrides": {
+          "mobile": {
+            "heading": "Markets move fast",
+            "body": "Open an account in minutes."
+          }
+        }
+      }
+    },
+    {
+      "id": "notice-maintenance",
+      "template": "banner",
+      "status": "live",
+      "priority": 10,
+      "devices": ["desktop", "tablet", "mobile"],
+      "trigger": { "type": "immediate" },
+      "frequency": { "max_impressions": 1, "per": "session", "dismiss_ttl_days": 1 },
+      "targeting": [
+        [ { "d": "path", "op": "starts_with", "v": "/promo" } ]
+      ],
+      "content": {
+        "theme": "orange-black",
+        "position": "top",
+        "heading": "Scheduled maintenance on Sunday 02:00–04:00 UTC.",
+        "cta_label": "Details",
+        "cta_url": "https://libertex.com/status",
+        "legal": { "mode": "off", "off_reason": "Operational notice, not a financial promotion" }
+      }
+    },
+    {
+      "id": "promo-scroll-test",
+      "template": "modal",
+      "status": "live",
+      "priority": 80,
+      "devices": ["desktop", "tablet"],
+      "trigger": { "type": "scroll", "value": 40 },
+      "frequency": { "max_impressions": 1, "per": "day", "dismiss_ttl_days": 7 },
+      "targeting": [
+        [ { "d": "path", "op": "contains", "v": "/promo" } ],
+        [ { "d": "device", "op": "in", "v": ["desktop", "tablet"] } ]
+      ],
+      "content": {
+        "theme": "black-orange",
+        "heading": "Still reading?",
+        "body": "See this quarter's most traded instruments.",
+        "cta_label": "View instruments",
+        "cta_url": "https://libertex.com/instruments",
+        "legal": { "mode": "auto" }
+      }
+    },
+    {
+      "id": "poll-instrument-interest",
+      "template": "questionnaire",
+      "status": "live",
+      "priority": 40,
+      "devices": ["desktop", "tablet", "mobile"],
+      "trigger": { "type": "delay", "value": 4000 },
+      "frequency": { "max_impressions": 1, "per": "lifetime", "dismiss_ttl_days": 30 },
+      "targeting": [
+        [ { "d": "path", "op": "starts_with", "v": "/" } ]
+      ],
+      "content": {
+        "theme": "white-black",
+        "show_logo": true,
+        "heading": "Quick one for you",
+        "body": "Two questions, ten seconds.",
+        "legal": { "mode": "auto" },
+        "questions": [
+          { "id": "market", "text": "Which market interests you most?",
+            "options": [
+              { "label": "Forex", "value": "forex" },
+              { "label": "Crypto", "value": "crypto" },
+              { "label": "Stocks", "value": "stocks" },
+              { "label": "Commodities", "value": "commodities" }
+            ] },
+          { "id": "experience", "text": "How long have you been trading?",
+            "options": [
+              { "label": "New to it", "value": "new" },
+              { "label": "Under a year", "value": "under_1y" },
+              { "label": "1-3 years", "value": "1_3y" },
+              { "label": "3+ years", "value": "3y_plus" }
+            ] }
+        ],
+        "completion": {
+          "heading": "Thanks — that helps.",
+          "body": "See instruments matched to what you picked.",
+          "cta_label": "View instruments",
+          "cta_url": "https://libertex.com/instruments"
+        }
+      }
+    },
+    {
+      "id": "spin-to-win-august",
+      "template": "gamification",
+      "status": "live",
+      "priority": 45,
+      "devices": ["desktop", "tablet", "mobile"],
+      "trigger": { "type": "delay", "value": 5000 },
+      "frequency": { "max_impressions": 1, "per": "day", "dismiss_ttl_days": 3 },
+      "targeting": [
+        [ { "d": "path", "op": "starts_with", "v": "/" } ]
+      ],
+      "content": {
+        "theme": "black-orange",
+        "show_logo": true,
+        "heading": "Think you can call the market?",
+        "body": "Pick an asset and predict its next move.",
+        "legal": { "mode": "auto" },
+        "duration_ms": 5000,
+        "volatility_pct": 0.4,
+        "win_body": "Correct call! Here's 10% off your next deposit fee.",
+        "lose_body": "Not quite — the market had other plans. Try a demo account instead.",
+        "cta_label": "Open an account",
+        "cta_url": "https://libertex.com/signup",
+        "assets": [
+          { "symbol": "XAUUSD", "label": "Gold", "start_price": 2380.5 },
+          { "symbol": "EURUSD", "label": "EUR/USD", "start_price": 1.0845 },
+          { "symbol": "BTCUSD", "label": "Bitcoin", "start_price": 62500 }
+        ]
+      }
+    }
+  ]
+}

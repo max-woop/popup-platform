@@ -1,0 +1,19 @@
+{
+  "name": "popup-admin-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test:ingest": "node scripts/test-ingest.js",
+    "test:admin-api": "node scripts/test-admin-api.js"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "better-sqlite3": "^12.11.1",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}

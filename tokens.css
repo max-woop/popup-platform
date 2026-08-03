@@ -1,0 +1,529 @@
+/* ============================================================================
+   Libertex Popup Platform — design tokens
+   Spec §4.2 (colour), §4.3 (type), §4.6 (shape), §4.7 (layout)
+
+   Injected into the popup's Shadow DOM. Nothing outside this file may
+   hard-code a colour, font, or spacing value.
+
+   STATUS
+     ✅ Colour primaries      — confirmed from brand guidelines
+     ⚠  Extended spectrum     — names confirmed, hex values pending (Q1b)
+     ❌ Typography            — pending (Q1), system stack used as placeholder
+     ⚠  Error colour          — none exists in brand palette (Q1c)
+   ========================================================================= */
+
+:host {
+  /* --- Colour: primary palette (confirmed) ------------------------------ */
+  --lx-orange:            #FF4C0B;   /* Electric Orange — primary */
+  --lx-black:             #000000;
+  --lx-white:             #FFFFFF;
+
+  /* --- Colour: extended spectrum (PLACEHOLDER VALUES — Q1b) ------------- */
+  /* Names are confirmed by the guidelines; hex values are approximations
+     sampled from the spectrum strip and MUST be replaced before launch. */
+  --lx-off-white:         #FDF2ED;   /* PLACEHOLDER */
+  --lx-orange-200:        #FFCFB4;   /* PLACEHOLDER */
+  --lx-orange-400:        #FF7A45;   /* PLACEHOLDER */
+  --lx-brown:             #3D0D02;   /* PLACEHOLDER */
+  --lx-neon:              #D6F86A;   /* PLACEHOLDER */
+  --lx-silver:            #E3E3E3;   /* PLACEHOLDER */
+
+  /* --- Colour: functional ----------------------------------------------- */
+  --lx-overlay:           rgba(0, 0, 0, .5);
+  --lx-error:             var(--lx-brown);  /* PLACEHOLDER — see Q1c */
+  --lx-border:            var(--lx-silver);
+
+  /* --- Colour: LBX (§11.3.2 — sibling brand under Libertex Group) --------
+     Sourced directly from lbx.com's own CSS custom properties and rendered
+     buttons, not placeholders: --brand-primary, --brand-secondary,
+     --brand-tertiary, --text-primary as shipped on their site today. A
+     separate palette, not a Libertex extension — LBX's primary is blue,
+     not orange, and that distinction is the point (§4.2 governs Libertex
+     content only; LBX content uses these instead). */
+  --lbx-blue:             #012AFF;   /* --brand-primary on lbx.com */
+  --lbx-black:            #000000;   /* real "Trade Now" CTA background */
+  --lbx-white:            #FFFFFF;
+  --lbx-off-white:        #F5F5F5;   /* --brand-secondary; real "Sign In" button bg */
+  --lbx-orange:           #F94D08;   /* --brand-tertiary; logo gradient stop */
+  --lbx-text:             #161616;   /* --text-primary */
+
+  /* --- Typography (PLACEHOLDER — Q1) ------------------------------------ */
+  /* System stack until the brand type spec arrives. Swapping this to the
+     real family should require no other change. */
+  --lx-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+             Helvetica, Arial, sans-serif;
+
+  --lx-weight-regular:    400;
+  --lx-weight-medium:     500;
+  --lx-weight-bold:       700;
+
+  /* Type scale. Headline size is fluid against popup width per §4.7.2
+     ("headlines are set in relation to margins, format size, line length"). */
+  --lx-size-h1:           clamp(22px, 5.2cqw, 34px);
+  --lx-size-h2:           clamp(17px, 3.6cqw, 22px);
+  --lx-size-body:         15px;
+  --lx-size-button:       15px;
+  --lx-size-legal:        11px;
+  --lx-size-label:        12px;
+
+  --lx-leading-tight:     1.12;
+  --lx-leading-body:      1.45;
+
+  /* --- Layout (§4.7.1) --------------------------------------------------- */
+  /* Margin floor: 24px below 768px, 40px above. Decided exception to the
+     brand's flat 40px floor, which was written for 1080px social canvases. */
+  --lx-margin-floor:      24px;
+  --lx-columns:           2;
+  --lx-margin:            24px;   /* recomputed at runtime by layout.js */
+  --lx-gutter:            12px;   /* recomputed at runtime */
+
+  /* --- Shape & depth (§4.6) --------------------------------------------- */
+  --lx-space:             4px;    /* base unit; everything is a multiple */
+  --lx-radius-sm:         4px;
+  --lx-radius-md:         8px;
+  --lx-radius-lg:         16px;
+  --lx-shadow:            0 10px 40px rgba(0, 0, 0, .18);
+  --lx-z:                 2147483000;
+
+  /* --- Motion ------------------------------------------------------------ */
+  --lx-ease:              cubic-bezier(.2, .7, .3, 1);
+  --lx-duration:          220ms;
+}
+
+@media (min-width: 768px) {
+  :host {
+    --lx-margin-floor: 40px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :host {
+    --lx-columns: 6;
+  }
+}
+
+/* ============================================================================
+   Approved colour pairings (§4.2)
+
+   A theme is a NAMED PAIRING, not two free colour fields. This is what stops
+   the source system sending an unapproved combination.
+   ========================================================================= */
+
+.lx-theme-white-black   { --bg: var(--lx-white);      --fg: var(--lx-black);  --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
+.lx-theme-white-orange  { --bg: var(--lx-white);      --fg: var(--lx-orange); --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
+.lx-theme-black-white   { --bg: var(--lx-black);      --fg: var(--lx-white);  --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); }
+.lx-theme-black-orange  { --bg: var(--lx-black);      --fg: var(--lx-orange); --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); }
+.lx-theme-orange-black  { --bg: var(--lx-orange);     --fg: var(--lx-black);  --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
+.lx-theme-orange-white  { --bg: var(--lx-orange);     --fg: var(--lx-white);  --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
+.lx-theme-orange-brown  { --bg: var(--lx-orange);     --fg: var(--lx-brown);  --cta-bg: var(--lx-brown);  --cta-fg: var(--lx-white); }
+.lx-theme-brown-orange  { --bg: var(--lx-brown);      --fg: var(--lx-orange); --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); }
+.lx-theme-neon-black    { --bg: var(--lx-neon);       --fg: var(--lx-black);  --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
+.lx-theme-offwhite-orange { --bg: var(--lx-off-white); --fg: var(--lx-orange); --cta-bg: var(--lx-black); --cta-fg: var(--lx-white); }
+.lx-theme-orange200-black { --bg: var(--lx-orange-200); --fg: var(--lx-black); --cta-bg: var(--lx-black); --cta-fg: var(--lx-white); }
+.lx-theme-silver-orange { --bg: var(--lx-silver);     --fg: var(--lx-orange); --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
+
+/* Three canonical identity themes — pick the dominant brand colour and stop
+   there. Aliases onto the pairings above (same variables, same approved
+   contrast), not a new colour system: `orange` is `orange-black`, etc. Use
+   these for the common case; reach for the named pairings above only when a
+   template specifically needs one of the extended-spectrum combinations. */
+.lx-theme-orange { --bg: var(--lx-orange); --fg: var(--lx-black); --cta-bg: var(--lx-black); --cta-fg: var(--lx-white); }
+.lx-theme-black  { --bg: var(--lx-black);  --fg: var(--lx-white); --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); }
+.lx-theme-white  { --bg: var(--lx-white);  --fg: var(--lx-black); --cta-bg: var(--lx-black); --cta-fg: var(--lx-white); }
+
+/* LBX identity themes — same three-way shape (accent / dark / light), LBX's
+   own colours. Not part of §4.2's approved-pairings table; that table
+   governs Libertex content only. */
+.lx-theme-lbx-blue  { --bg: var(--lbx-blue);      --fg: var(--lbx-white); --cta-bg: var(--lbx-black); --cta-fg: var(--lbx-white); }
+.lx-theme-lbx-black { --bg: var(--lbx-black);     --fg: var(--lbx-white); --cta-bg: var(--lbx-blue);  --cta-fg: var(--lbx-white); }
+.lx-theme-lbx-white { --bg: var(--lbx-white);     --fg: var(--lbx-text);  --cta-bg: var(--lbx-black); --cta-fg: var(--lbx-white); }
+
+/* ============================================================================
+   Base structure
+   ========================================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.lx-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--lx-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--lx-margin);
+  animation: lx-fade var(--lx-duration) var(--lx-ease);
+}
+
+.lx-panel {
+  position: relative;
+  container-type: inline-size;      /* enables cqw units in the type scale */
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--lx-font);
+  border-radius: var(--lx-radius-lg);
+  box-shadow: var(--lx-shadow);
+  padding: var(--lx-margin);
+  width: 100%;
+  max-width: 460px;
+  max-height: calc(100vh - (var(--lx-margin) * 2));
+  overflow-y: auto;
+  animation: lx-rise var(--lx-duration) var(--lx-ease);
+}
+
+/* Below 768px a modal becomes a bottom sheet — better reachability and it
+   avoids collisions with the on-screen keyboard in form templates (§5.3). */
+@media (max-width: 767px) {
+  .lx-backdrop { align-items: flex-end; padding: 0; }
+  .lx-panel {
+    max-width: none;
+    border-radius: var(--lx-radius-lg) var(--lx-radius-lg) 0 0;
+    max-height: 88vh;
+    animation: lx-sheet var(--lx-duration) var(--lx-ease);
+  }
+}
+
+/* Square shape (§4.7.2 — "square or portrait formats" permitted for modal).
+   Logo/heading/subhead stay grouped near the top; the CTA is pushed toward
+   the bottom via margin-top:auto on .lx-cta, with the legal slot right after
+   it, pinned to the bottom edge exactly like the brand's own layout examples. */
+.lx-panel[data-shape="square"] {
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 1 / 1;
+  max-height: none;
+  overflow: hidden;
+}
+.lx-panel[data-shape="square"] .lx-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.lx-panel[data-shape="square"] .lx-cta {
+  margin-top: auto;
+  align-self: flex-start;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .18);
+}
+
+/* --- Banner ------------------------------------------------------------- */
+.lx-banner {
+  position: fixed;
+  left: 0; right: 0;
+  container-type: inline-size;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--lx-font);
+  padding: calc(var(--lx-space) * 3) var(--lx-margin);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--lx-space) * 4);
+  flex-wrap: wrap;
+  box-shadow: var(--lx-shadow);
+}
+.lx-banner[data-position="top"]    { top: 0;    animation: lx-slide-down var(--lx-duration) var(--lx-ease); }
+.lx-banner[data-position="bottom"] { bottom: 0; animation: lx-slide-up   var(--lx-duration) var(--lx-ease); }
+.lx-banner .lx-body { margin: 0; }
+.lx-banner .lx-content { flex: 1 1 260px; }
+
+/* --- Logo (§4.7.3) ------------------------------------------------------- */
+.lx-logo { display: block; margin-bottom: calc(var(--lx-space) * 4); }
+.lx-logo svg { display: block; height: 100%; width: auto; }
+
+/* --- Type (§4.7.2) ------------------------------------------------------- */
+/* Left alignment is the brand default. Alignment is set by the template and
+   is deliberately NOT a per-popup content field, so headline and subhead can
+   never be mixed. */
+.lx-content { text-align: left; }
+
+.lx-heading {
+  margin: 0 0 calc(var(--lx-space) * 2);
+  font-size: var(--lx-size-h1);
+  line-height: var(--lx-leading-tight);
+  font-weight: var(--lx-weight-bold);
+  letter-spacing: -.02em;
+  /* Cap-height alignment to the top margin (§4.7.2) is optical, not
+     bounding-box. The offset below is a placeholder — the real value derives
+     from the brand font's metrics and lands with Q1. */
+  margin-top: -.08em;
+}
+
+.lx-subheading {
+  margin: 0 0 calc(var(--lx-space) * 3);
+  font-size: var(--lx-size-h2);
+  line-height: var(--lx-leading-tight);
+  font-weight: var(--lx-weight-regular);
+  opacity: .9;
+}
+
+.lx-body {
+  margin: 0 0 calc(var(--lx-space) * 5);
+  font-size: var(--lx-size-body);
+  line-height: var(--lx-leading-body);
+}
+
+/* --- Media --------------------------------------------------------------- */
+/* Fixed ratio slots so an unexpected image size cannot break layout (§5.2). */
+.lx-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--lx-radius-md);
+  margin-bottom: calc(var(--lx-space) * 4);
+  background: var(--lx-silver);
+  display: block;
+}
+@media (max-width: 767px) {
+  .lx-media { aspect-ratio: 4 / 3; }
+}
+
+/* --- CTA ----------------------------------------------------------------- */
+/* Black fill, white label, trailing arrow — per the brand layout examples. */
+.lx-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--lx-space) * 2);
+  background: var(--cta-bg);
+  color: var(--cta-fg);
+  font-family: inherit;
+  font-size: var(--lx-size-button);
+  font-weight: var(--lx-weight-medium);
+  line-height: 1;
+  padding: calc(var(--lx-space) * 4) calc(var(--lx-space) * 6);
+  border: 0;
+  border-radius: var(--lx-radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform var(--lx-duration) var(--lx-ease),
+              opacity   var(--lx-duration) var(--lx-ease);
+}
+.lx-cta:hover  { opacity: .9; transform: translateY(-1px); }
+.lx-cta:active { transform: translateY(0); }
+.lx-cta-arrow  { width: 16px; height: 16px; flex: none; }
+.lx-cta:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* --- Form (§9) ------------------------------------------------------------ */
+/* modal_form embeds the existing llLanding registration widget (§9.1) — its
+   actual <form> is a light DOM child of the popup host, projected in here
+   via <slot> (§9.5), because that widget binds via document.querySelector,
+   which cannot see into a shadow root.
+
+   That has a CSS consequence: ::slotted() only ever matches the slotted
+   element itself, never its descendants, so a class-based rule here could
+   style the <form> tag itself but none of its fields. sdk.js applies all of
+   that styling inline instead (still referencing these same custom
+   properties via var() — only *how* it's applied differs, not the values).
+   Nothing below needs to reach past this slot wrapper. */
+.lx-form-slot { display: block; }
+.lx-form-success {
+  font-size: var(--lx-size-body);
+  font-weight: var(--lx-weight-medium);
+}
+
+/* --- Questionnaire (§5.4) -------------------------------------------------
+   Button-only answers, one question at a time — no free-text input exists
+   to style, deliberately (same "typed data, never a payload" reasoning as
+   everywhere else, §10.2). */
+.lx-q-progress {
+  display: flex;
+  gap: calc(var(--lx-space) * 1);
+  margin: 0 0 calc(var(--lx-space) * 4);
+}
+.lx-q-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 25%, transparent);
+}
+.lx-q-dot[data-done="true"] { background: var(--fg); }
+.lx-q-text {
+  margin: 0 0 calc(var(--lx-space) * 4);
+  font-size: var(--lx-size-h2);
+  font-weight: var(--lx-weight-bold);
+  line-height: var(--lx-leading-tight);
+}
+.lx-q-options {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--lx-space) * 2);
+  margin: 0 0 calc(var(--lx-space) * 2);
+}
+.lx-q-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: var(--lx-size-button);
+  padding: calc(var(--lx-space) * 3) calc(var(--lx-space) * 4);
+  border-radius: var(--lx-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  transition: background var(--lx-duration) var(--lx-ease), transform var(--lx-duration) var(--lx-ease);
+}
+.lx-q-option:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.lx-q-option:active { transform: scale(.98); }
+.lx-q-option[data-selected="true"] { background: var(--cta-bg); color: var(--cta-fg); border-color: var(--cta-bg); }
+.lx-q-option:focus-visible { outline: 3px solid var(--lx-orange); outline-offset: 2px; }
+
+/* --- Gamification: Market Prediction Challenge (§5.5) ----------------------
+   Asset picker reuses .lx-q-option/.lx-q-options from the questionnaire
+   (§5.4) — same "row of equal buttons" shape, no need for a second set of
+   button styles. Everything below is specific to the price/countdown/
+   result states. */
+.lx-game-price {
+  margin: 0 0 calc(var(--lx-space) * 1);
+  font-size: var(--lx-size-h1);
+  font-weight: var(--lx-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+/* Persistent, not a footnote — a trading platform showing a number that
+   looks like a live quote is a real risk of implying real market data, so
+   this stays visible for the whole challenge, not just on first render. */
+.lx-game-disclaimer {
+  margin: 0 0 calc(var(--lx-space) * 4);
+  font-size: 10px;
+  font-weight: var(--lx-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  opacity: .7;
+}
+.lx-game-direction-row {
+  display: flex;
+  gap: calc(var(--lx-space) * 3);
+  margin: 0 0 calc(var(--lx-space) * 2);
+}
+.lx-game-direction-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--lx-space) * 1);
+  font: inherit;
+  font-size: var(--lx-size-button);
+  font-weight: var(--lx-weight-medium);
+  padding: calc(var(--lx-space) * 4);
+  border-radius: var(--lx-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  transition: background var(--lx-duration) var(--lx-ease);
+}
+.lx-game-direction-btn:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.lx-game-direction-btn:focus-visible { outline: 3px solid var(--lx-orange); outline-offset: 2px; }
+.lx-game-direction-btn[data-selected="true"] { background: var(--cta-bg); color: var(--cta-fg); border-color: var(--cta-bg); }
+.lx-game-countdown {
+  margin: calc(var(--lx-space) * 2) 0 calc(var(--lx-space) * 4);
+  font-size: var(--lx-size-label);
+  opacity: .85;
+}
+.lx-game-countdown-track {
+  margin-top: calc(var(--lx-space) * 2);
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--fg) 15%, transparent);
+}
+.lx-game-countdown-fill {
+  height: 100%;
+  background: var(--cta-bg);
+  width: 100%;
+  transition: width linear;
+}
+.lx-game-result-badge {
+  display: inline-block;
+  margin: 0 0 calc(var(--lx-space) * 3);
+  padding: calc(var(--lx-space) * 1) calc(var(--lx-space) * 3);
+  border-radius: 999px;
+  font-size: var(--lx-size-label);
+  font-weight: var(--lx-weight-bold);
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.lx-game-result-prices {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(var(--lx-space) * 4);
+  margin: 0 0 calc(var(--lx-space) * 4);
+  font-size: var(--lx-size-label);
+  font-variant-numeric: tabular-nums;
+  opacity: .85;
+}
+
+/* --- Legal slot (§11.3.4) ------------------------------------------------ */
+/* Structural, not content. Cannot be hidden, collapsed, or overridden by any
+   device override — there is no content field that targets it. */
+.lx-legal {
+  margin: calc(var(--lx-space) * 5) 0 0;
+  padding-top: calc(var(--lx-space) * 3);
+  border-top: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
+  font-size: var(--lx-size-legal);
+  line-height: 1.35;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .85;
+}
+.lx-banner .lx-legal {
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+  flex: 1 1 100%;
+}
+
+/* --- Close --------------------------------------------------------------- */
+/* 44×44 minimum hit area (§8.4). */
+.lx-close {
+  position: absolute;
+  top: calc(var(--lx-space) * 2);
+  right: calc(var(--lx-space) * 2);
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--lx-radius-sm);
+  color: inherit;
+  cursor: pointer;
+  opacity: .6;
+}
+.lx-close:hover { opacity: 1; }
+.lx-close svg   { width: 18px; height: 18px; }
+.lx-banner .lx-close { position: static; }
+
+/* --- Focus (§8.4) -------------------------------------------------------- */
+:where(.lx-cta, .lx-close):focus-visible {
+  outline: 3px solid var(--lx-orange);
+  outline-offset: 2px;
+}
+.lx-theme-orange-black :focus-visible,
+.lx-theme-orange-white :focus-visible,
+.lx-theme-orange-brown :focus-visible,
+.lx-theme-orange :focus-visible {
+  outline-color: var(--lx-black);
+}
+
+/* LBX themes use their own accent (blue) as the default outline colour,
+   except on the one theme where blue *is* the background — same "swap to
+   black for contrast" pattern as the orange themes above. */
+[class*="lx-theme-lbx-"]:focus-visible,
+[class*="lx-theme-lbx-"] :focus-visible {
+  outline-color: var(--lbx-blue);
+}
+.lx-theme-lbx-blue :focus-visible {
+  outline-color: var(--lbx-black);
+}
+
+/* --- Motion -------------------------------------------------------------- */
+@keyframes lx-fade       { from { opacity: 0 } to { opacity: 1 } }
+@keyframes lx-rise       { from { opacity: 0; transform: translateY(12px) scale(.98) } to { opacity: 1; transform: none } }
+@keyframes lx-sheet      { from { transform: translateY(100%) } to { transform: none } }
+@keyframes lx-slide-down { from { transform: translateY(-100%) } to { transform: none } }
+@keyframes lx-slide-up   { from { transform: translateY(100%) } to { transform: none } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lx-backdrop, .lx-panel, .lx-banner { animation: none !important; }
+  .lx-cta { transition: none; }
+}

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Popup SDK — Phase 0 test harness</title>
+<style>
+  :root { --ink:#111; --muted:#666; --line:#e5e5e5; --orange:#FF4C0B; }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--ink); background:#fff;
+  }
+  header { border-bottom:1px solid var(--line); padding:24px 20px; }
+  h1 { margin:0 0 4px; font-size:19px; letter-spacing:-.01em; }
+  header p { margin:0; color:var(--muted); font-size:13px; }
+  main { max-width:820px; margin:0 auto; padding:24px 20px 80px; }
+  section { border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:18px; }
+  h2 { margin:0 0 12px; font-size:14px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  button {
+    font:inherit; padding:8px 14px; border:1px solid var(--line); background:#fafafa;
+    border-radius:6px; cursor:pointer; margin:0 6px 6px 0;
+  }
+  button:hover { background:#f0f0f0; }
+  pre {
+    background:#0f0f0f; color:#e8e8e8; padding:14px; border-radius:8px;
+    overflow:auto; font-size:12.5px; line-height:1.5; margin:0;
+  }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  td { padding:6px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  td:first-child { color:var(--muted); width:190px; }
+  .ok   { color:#0a7d32; font-weight:600; }
+  .bad  { color:#c02626; font-weight:600; }
+  .warn { color:#a35a00; font-weight:600; }
+  .filler { color:var(--muted); font-size:14px; }
+  .filler p { margin:0 0 90px; }
+  code { background:#f4f4f4; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Popup SDK — Phase 0 test harness</h1>
+  <p>Validates the Tealium load path, CSP behaviour, entity resolution, and the legal fail-safe.</p>
+</header>
+
+<main>
+
+<section>
+  <h2>Diagnostics</h2>
+  <table id="diag"><tr><td>loading…</td><td></td></tr></table>
+  <p style="margin:14px 0 0"><button id="refresh">Refresh</button></p>
+</section>
+
+<section>
+  <h2>Manual triggers</h2>
+  <button data-show="promo-summer-2026">Show modal_media</button>
+  <button data-show="promo-scroll-test">Show modal</button>
+  <button data-show="notice-maintenance">Show banner</button>
+  <button data-show="poll-instrument-interest">Show questionnaire</button>
+  <button data-show="spin-to-win-august">Show gamification</button>
+  <button id="hide">Hide all</button>
+  <button id="reset">Reset frequency state</button>
+</section>
+
+<section>
+  <h2>Legal fail-safe check (§11.3.3)</h2>
+  <p style="margin:0 0 12px;font-size:13.5px;color:var(--muted)">
+    Removes the entity mapping for this host, then attempts to render a popup in
+    <code>auto</code> mode. Expected result: <strong>nothing renders</strong> —
+    a promotional popup with no risk warning is worse than no popup.
+  </p>
+  <button id="failsafe">Run fail-safe test</button>
+  <pre id="failsafe-out" style="margin-top:12px;display:none"></pre>
+</section>
+
+<section>
+  <h2>Collected events (§14)</h2>
+  <p style="margin:0 0 12px;font-size:13.5px;color:var(--muted)">
+    Reads back from the admin server's Collector at <code>localhost:8787</code> —
+    proves events this page sends via <code>sendBeacon</code> actually land.
+  </p>
+  <button id="refresh-events">Refresh</button>
+  <button id="flush-now">Force flush now</button>
+  <pre id="events-out" style="margin-top:12px;max-height:220px"></pre>
+</section>
+
+<section>
+  <h2>Scroll trigger</h2>
+  <p style="margin:0;font-size:13.5px;color:var(--muted)">
+    <code>promo-scroll-test</code> fires at 40% scroll depth on desktop and tablet.
+    Scroll down to test. It is excluded on mobile widths by its <code>devices</code> list.
+  </p>
+</section>
+
+<section class="filler">
+  <h2>Filler (scroll depth)</h2>
+  <p>Scroll past this to reach the 40% trigger point.</p>
+  <p>Keep going.</p>
+  <p>Almost there.</p>
+  <p>The scroll-triggered popup should appear around here.</p>
+  <p>End of filler.</p>
+</section>
+
+</main>
+
+<!-- ===================================================================
+     Simulates the Tealium Custom Container tag (see tealium-tag.html).
+     Local paths and no SRI, since the file is served from disk.
+     =================================================================== -->
+<script>
+  window.utag_data = {
+    page_type: 'promo',
+    campaign:  'summer_2026',
+    user_logged_in: 'false',
+    country: 'ME',
+    language: 'en'
+  };
+
+  window.LxPopup = window.LxPopup || {};
+  window.LxPopup.config = {
+    configUrl:  './config.json',
+    // Points at the real Collector built for §14 (admin/server/lib/collector.js).
+    // Requires that server running on :8787 and this page served from an
+    // origin in its allowlist (defaults include http://localhost:8080).
+    collectUrl: 'http://localhost:8787/v1/events',
+    dataLayer:  window.utag_data,
+    env: 'dev'
+  };
+
+  // build.js normally inlines tokens.css into dist/sdk.js (window.LxPopup.__css)
+  // — see build.js's `inject` step. This harness loads the raw src file
+  // directly and was never run through that build, so pull the same
+  // stylesheet in at runtime instead. Same result, no build step required.
+  // `cb` only runs once sdk.js has actually finished loading and executing.
+  function loadSdk(cb) {
+    fetch('./tokens.css').then(function (r) { return r.text(); }).then(function (css) {
+      window.LxPopup.__css = css;
+      var s = document.createElement('script');
+      s.src = './sdk.js';
+      s.onload = cb;
+      document.head.appendChild(s);
+    });
+  }
+</script>
+
+<script>
+(function () {
+  var rows = [
+    ['Host',                function (d) { return d.host; }],
+    ['Resolved entity',     function (d) { return d.entity
+                              ? '<span class="ok">' + d.entity + '</span>'
+                              : '<span class="bad">null → popups suppressed</span>'; }],
+    ['Device class',        function (d) { return d.device + (d.touch ? ' (touch)' : ''); }],
+    ['Config loaded',       function (d) { return d.configLoaded
+                              ? '<span class="ok">yes</span>' : '<span class="bad">no</span>'; }],
+    ['Popups in config',    function (d) { return d.popupCount; }],
+    ['Eligible now',        function (d) { return d.eligible.length
+                              ? d.eligible.join(', ') : '<span class="warn">none</span>'; }],
+    ['Session id',          function (d) { return d.session ? d.session.id.slice(0, 8) + '…' : '—'; }],
+    ['Shown this session',  function (d) { return d.session ? d.session.shown || 0 : 0; }]
+  ];
+
+  function render() {
+    var t = document.getElementById('diag');
+    if (!window.LxPopup || !window.LxPopup._diagnostics) {
+      t.textContent = 'SDK not loaded';
+      return;
+    }
+    var d = window.LxPopup._diagnostics();
+    var html = '';
+    rows.forEach(function (r) {
+      html += '<tr><td>' + r[0] + '</td><td>' + r[1](d) + '</td></tr>';
+    });
+    // Test harness only — never a pattern for the SDK itself, which
+    // uses textContent exclusively (§10.2).
+    t.innerHTML = html;
+  }
+
+  loadSdk(function () {
+    window.LxPopup.debug(true);
+    setTimeout(render, 400);
+  });
+  document.getElementById('refresh').addEventListener('click', render);
+
+  document.querySelectorAll('[data-show]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      window.LxPopup.show(b.getAttribute('data-show'));
+      setTimeout(render, 100);
+    });
+  });
+
+  document.getElementById('hide').addEventListener('click', function () {
+    window.LxPopup.hide();
+    render();
+  });
+
+  document.getElementById('reset').addEventListener('click', function () {
+    localStorage.removeItem('lx_popup_state_v1');
+    location.reload();
+  });
+
+  function loadEvents() {
+    var out = document.getElementById('events-out');
+    out.textContent = 'loading…';
+    fetch('http://localhost:8787/api/recent-events')
+      .then(function (r) { return r.json(); })
+      .then(function (events) {
+        if (!events.length) { out.textContent = '(none yet — trigger a popup, click it, then "Force flush now")'; return; }
+        out.textContent = events.slice(0, 15).map(function (e) {
+          return e.received_at + '  ' + e.type + '  ' + e.popup_id + '  ' + e.device;
+        }).join('\n');
+      })
+      .catch(function (err) { out.textContent = 'Collector unreachable: ' + err.message + '\n(is admin/server running on :8787?)'; });
+  }
+
+  document.getElementById('refresh-events').addEventListener('click', loadEvents);
+  document.getElementById('flush-now').addEventListener('click', function () {
+    window.LxPopup._flushNow && window.LxPopup._flushNow();
+    setTimeout(loadEvents, 300);
+  });
+
+  document.getElementById('failsafe').addEventListener('click', function () {
+    var out = document.getElementById('failsafe-out');
+    out.style.display = 'block';
+
+    var before = window.LxPopup.getActive().length;
+    // Reach into the loaded config and delete this host's mapping.
+    fetch('./config.json').then(function (r) { return r.json(); }).then(function (cfg) {
+      var host = location.hostname;
+      var lines = [];
+      lines.push('host              : ' + host);
+      lines.push('mapping present   : ' + (cfg.entity_domains[host] || '(none)'));
+      lines.push('');
+      lines.push('Simulating removal of the mapping and rendering in auto mode…');
+
+      window.LxPopup.hide();
+      window.LxPopup._simulateUnknownHost && window.LxPopup._simulateUnknownHost();
+      window.LxPopup.show('promo-summer-2026');
+
+      setTimeout(function () {
+        var after = window.LxPopup.getActive().length;
+        lines.push('');
+        lines.push('popups rendered   : ' + after);
+        lines.push(after === 0
+          ? 'RESULT            : PASS — suppressed, no warning-less promo shown'
+          : 'RESULT            : FAIL — a popup rendered without a resolvable warning');
+        out.textContent = lines.join('\n');
+      }, 300);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

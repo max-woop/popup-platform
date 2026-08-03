@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Popup templates — style guide</title>
+<style>
+  :root { --ink:#111; --muted:#666; --line:#e5e5e5; --orange:#FF4C0B; --sunken:#fafafa; }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--ink); background:#fff;
+  }
+  header {
+    border-bottom:1px solid var(--line); padding:24px 20px;
+    display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap;
+  }
+  h1 { margin:0 0 4px; font-size:19px; letter-spacing:-.01em; }
+  header p { margin:0; color:var(--muted); font-size:13px; max-width:640px; }
+  header p a { color:var(--orange); }
+  .mode-toggle { display:inline-flex; border:1px solid var(--line); border-radius:999px; padding:2px; flex:none; }
+  .mode-toggle button {
+    border:0; background:none; padding:7px 14px; border-radius:999px; font-size:12.5px;
+    font-family:inherit; cursor:pointer; color:var(--muted);
+  }
+  .mode-toggle button.active { background:#111; color:#fff; }
+  .mode-toggle-label { font-size:11px; color:var(--muted); display:block; margin-bottom:4px; }
+  main { max-width:1100px; margin:0 auto; padding:24px 20px 80px; }
+  .grid {
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap:24px;
+  }
+  .card {
+    border:1px solid var(--line); border-radius:10px; overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  .card-head { padding:14px 16px; border-bottom:1px solid var(--line); background:var(--sunken); }
+  .card-head h2 { margin:0 0 3px; font-size:13.5px; }
+  .card-head p { margin:0; font-size:12px; color:var(--muted); }
+  .card-head code { background:#eee; padding:1px 5px; border-radius:4px; }
+  .stage {
+    position:relative; flex:1;
+    padding:28px 16px; min-height:220px;
+    display:flex; align-items:center; justify-content:center;
+    background:
+      repeating-conic-gradient(#f2f2f2 0% 25%, #fff 0% 50%) 0 0 / 18px 18px;
+  }
+  .stage.stage-banner { padding:0; align-items:stretch; min-height:0; }
+  .stage.stage-banner > div { width:100%; }
+  .note { font-size:12px; color:var(--muted); padding:10px 16px 14px; border-top:1px solid var(--line); }
+  .note code { background:#f4f4f4; padding:1px 5px; border-radius:4px; }
+  section.info { border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:24px; font-size:13.5px; color:var(--muted); }
+  section.info strong { color:var(--ink); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Popup templates — style guide</h1>
+    <p>
+      All six templates (§5) rendered through the real SDK — same
+      <code>tokens.css</code>, same theme classes, same legal fail-safe (§11.3.3) —
+      not hand-drawn mockups. See <a href="./index.html">the interactive harness</a>
+      for triggered, full-viewport behaviour.
+    </p>
+  </div>
+  <div>
+    <span class="mode-toggle-label">Preview theme</span>
+    <div class="mode-toggle" id="mode-toggle">
+      <button type="button" data-mode="as-configured" class="active">As configured</button>
+      <button type="button" data-mode="light">Light</button>
+      <button type="button" data-mode="dark">Dark</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section class="info">
+  <strong>How to read this page.</strong> Each card is rendered in normal page
+  flow via <code>window.LxPopup.renderInline()</code> — a preview-only API that
+  reuses the exact same content builders and theme/legal resolution as a real
+  triggered popup, just without the fixed-position overlay. Resize the browser
+  below 768px and each modal widens edge-to-edge with only its top corners
+  rounded — the same CSS rule that turns it into a bottom sheet when actually
+  triggered (§5.3); the "sticks to the bottom of the viewport" part only shows
+  up with the fixed overlay <code>show()</code> uses, not in this static,
+  side-by-side layout. See <a href="./index.html">the interactive harness</a>
+  for that. The legal line at the bottom of each promotional template
+  resolves from the registry for this host, exactly as it would for a
+  visitor — it is not typed content. Every template accepts any theme —
+  the last card demonstrates this with the same <code>modal</code> builder
+  used above it, just themed for LBX (a sibling brand, separate palette)
+  instead of Libertex. Use the <strong>Preview theme</strong> toggle, top
+  right, to force every card to the same light or dark background — useful
+  for checking the logo or legibility without hunting for the one card that
+  already happens to use that background.
+</section>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="card-head">
+      <h2>banner <span style="color:var(--muted);font-weight:400">— promotional, top</span></h2>
+      <p>Full-width bar · <code>legal.mode: auto</code> · theme <code>orange</code></p>
+    </div>
+    <div class="stage stage-banner"><div id="slot-banner-promo"></div></div>
+    <p class="note">Announcements/promo use (§5, row 1). Position is <code>top</code> or <code>bottom</code>; legal slot appears inline, right-aligned into the flex row on wide viewports.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>banner <span style="color:var(--muted);font-weight:400">— operational notice</span></h2>
+      <p>Bottom position · <code>legal.mode: off</code> (not a financial promotion) · theme <code>white-black</code></p>
+    </div>
+    <div class="stage stage-banner"><div id="slot-banner-notice"></div></div>
+    <p class="note">Same template, no legal slot — <code>off</code> mode requires a stated reason and is audit-logged (§11.3.1).</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>modal <span style="color:var(--muted);font-weight:400">— centred, no media</span></h2>
+      <p>Heading + body + CTA · theme <code>black</code></p>
+    </div>
+    <div class="stage" id="slot-modal-stage"><div id="slot-modal"></div></div>
+    <p class="note">Promo offers use (§5, row 2). Below 768px this widens edge-to-edge (bottom sheet when actually triggered).</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>modal <span style="color:var(--muted);font-weight:400">— square shape</span></h2>
+      <p><code>shape: 'square'</code> · theme <code>white</code> · real logo, adaptive to theme</p>
+    </div>
+    <div class="stage" id="slot-modal-square-stage"><div id="slot-modal-square"></div></div>
+    <p class="note">Same <code>modal</code> builder, square aspect ratio (§4.7.2 "square or portrait formats"). Logo/heading/subhead stay grouped near the top; CTA and the legal slot are pinned to the bottom edge, matching the brand's own layout examples. The logo's wordmark uses <code>currentColor</code> so it reads correctly on any Libertex theme — it's suppressed entirely on LBX themes (below) since no real LBX logo asset exists yet.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>modal_media <span style="color:var(--muted);font-weight:400">— with image panel</span></h2>
+      <p>16:9 desktop / 4:3 mobile media slot · theme <code>white</code> · has a <code>mobile</code> content override</p>
+    </div>
+    <div class="stage" id="slot-media-stage"><div id="slot-modal-media"></div></div>
+    <p class="note">Visual campaigns (§5, row 3). Image is <code>object-fit:cover</code> in a fixed-ratio slot so an unexpected source size can't break layout (§5.2).</p>
+  </div>
+
+  <div class="card" style="grid-column: span 2;">
+    <div class="card-head">
+      <h2>modal_form <span style="color:var(--muted);font-weight:400">— registration, via the real llLanding widget</span></h2>
+      <p>email / password (+ phone if the domain registry says so) · theme <code>offwhite-orange</code> · consent text with real links resolved from the registry, not typed content (§9.4)</p>
+    </div>
+    <div class="stage" id="slot-form-stage"><div id="slot-modal-form"></div></div>
+    <p class="note">
+      Registration form (§9, rewritten from what this page originally assumed). The fields, consent
+      wording, and submission are all owned by an embedded third-party widget already live on
+      production Libertex domains — this platform never sees the submitted values. <strong>This preview
+      loads <code>mock-landing-api.js</code>, not the real widget</strong> — same call shape
+      (<code>llLanding.create({ form, apiKey, registrationCallback })</code>), zero network calls, so
+      trying it here never touches anything real. Submitting fires this platform's own
+      <code>form_submit</code> stat and a Tealium <code>utag.view()</code> push, exactly like production.
+      Tab through it — the form fields live in <em>light DOM</em>, not the shadow tree (§9.5), the one
+      deliberate exception in this whole SDK, so the widget's own <code>document.querySelector</code>
+      can find and bind to it.
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>questionnaire <span style="color:var(--muted);font-weight:400">— button-only answers</span></h2>
+      <p>1–3 questions, one at a time · theme <code>white-black</code> · no free-text input exists (§5.4)</p>
+    </div>
+    <div class="stage" id="slot-questionnaire-stage"><div id="slot-questionnaire"></div></div>
+    <p class="note">Preference capture / segmentation (§5, row 5). Every tap is a complete, final answer — fires <code>questionnaire_answer</code> immediately, no submit step. Try answering both questions.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>gamification <span style="color:var(--muted);font-weight:400">— Market Prediction Challenge</span></h2>
+      <p>Pick an asset, predict higher/lower · theme <code>black-orange</code> · simulated close, not a live quote (§5.5)</p>
+    </div>
+    <div class="stage" id="slot-gamification-stage"><div id="slot-gamification"></div></div>
+    <p class="note">Engagement/incentive campaigns (§5, row 6). Pick Gold, EUR/USD, or Bitcoin, call higher or lower, wait out the countdown — the reveal hands off to the same CTA affordance as <code>modal</code>. The price shown is content-supplied, not a real feed; the disclaimer stays on screen throughout, not just as a footnote.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>modal <span style="color:var(--muted);font-weight:400">— LBX brand</span></h2>
+      <p>Same template as above · theme <code>lbx-blue</code> · LBX's real palette, not Libertex's (§4.2)</p>
+    </div>
+    <div class="stage" id="slot-lbx-stage"><div id="slot-lbx"></div></div>
+    <p class="note">
+      Every template accepts any theme — this is the identical <code>modal</code> builder, just themed
+      <code>lbx-blue</code> instead of a Libertex pairing. Colours are sourced from <code>lbx.com</code>'s
+      own CSS (<code>--brand-primary: #012AFF</code>) and rendered "Trade Now" button (black), not
+      invented. Legal is <code>off</code> here only because this gallery runs on <code>localhost</code>,
+      which isn't mapped to the <code>lbx</code> entity — on <code>lbx.com</code> itself, <code>auto</code>
+      mode would resolve LBX's real risk warning exactly as it does for Libertex domains.
+    </p>
+  </div>
+
+</div>
+
+</main>
+
+<!-- Loader mirrors index.html / tealium-tag.html — local paths, no SRI,
+     since this is served from disk for the gallery too. -->
+<script>
+  window.utag_data = { page_type: 'promo', country: 'ME', language: 'en' };
+  window.LxPopup = window.LxPopup || {};
+  // This page is a style guide, not a promo page — it must not also arm
+  // boot()'s real delay/scroll/exit-intent triggers on top of the deliberate
+  // renderInline() previews below (§7.4's kill switch, repurposed here to
+  // mean "don't auto-show anything"; renderInline() doesn't check this flag,
+  // so previews still render normally).
+  window.LxPopup.disabled = true;
+  window.LxPopup.config = {
+    // Cache-busted only because this is a local static-file server under
+    // active editing — a real CDN-cached config.json (§3) should absolutely
+    // not do this.
+    configUrl:  './config.json?t=' + Date.now(),
+    collectUrl: 'http://localhost:8787/v1/events',
+    dataLayer:  window.utag_data,
+    env: 'dev'
+  };
+
+  // build.js normally inlines tokens.css into dist/sdk.js (window.LxPopup.__css)
+  // — see build.js's `inject` step. This harness loads the raw src file
+  // directly and was never run through that build, so pull the same
+  // stylesheet in at runtime instead. Same result, no build step required.
+  // `cb` only runs once sdk.js has actually finished loading and executing.
+  function loadSdk(cb) {
+    fetch('./tokens.css').then(function (r) { return r.text(); }).then(function (css) {
+      window.LxPopup.__css = css;
+      var s = document.createElement('script');
+      s.src = './sdk.js';
+      s.onload = cb;
+      document.head.appendChild(s);
+    });
+  }
+</script>
+
+<script>
+(function () {
+  var samples = [
+    {
+      slot: 'slot-banner-promo',
+      popup: {
+        id: 'gallery-banner-promo',
+        template: 'banner',
+        content: {
+          theme: 'orange', // canonical alias for orange-black — see §4.2
+          position: 'top',
+          heading: 'Summer promo: trade over 300 instruments from one account.',
+          cta_label: 'Open an account',
+          cta_url: 'https://libertex.com/signup',
+          legal: { mode: 'auto' }
+        }
+      }
+    },
+    {
+      slot: 'slot-banner-notice',
+      popup: {
+        id: 'gallery-banner-notice',
+        template: 'banner',
+        content: {
+          theme: 'white-black',
+          position: 'bottom',
+          heading: 'Scheduled maintenance Sunday 02:00–04:00 UTC.',
+          cta_label: 'Details',
+          cta_url: 'https://libertex.com/status',
+          legal: { mode: 'off', off_reason: 'Operational notice, not a financial promotion' }
+        }
+      }
+    },
+    {
+      slot: 'slot-modal',
+      popup: {
+        id: 'gallery-modal',
+        template: 'modal',
+        content: {
+          theme: 'black', // canonical alias for black-orange — see §4.2
+          show_logo: true,
+          heading: 'Still reading?',
+          body: 'See this quarter’s most traded instruments and current spreads.',
+          cta_label: 'View instruments',
+          cta_url: 'https://libertex.com/instruments',
+          legal: { mode: 'auto' }
+        }
+      }
+    },
+    {
+      slot: 'slot-modal-square',
+      popup: {
+        id: 'gallery-modal-square',
+        template: 'modal',
+        content: {
+          theme: 'white', // canonical alias for white-black — see §4.2
+          show_logo: true,
+          shape: 'square',
+          heading: 'Trade gold, FX, and crypto',
+          subheading: 'One account, over 300 instruments, tight spreads.',
+          cta_label: 'Open an account',
+          cta_url: 'https://libertex.com/signup',
+          legal: { mode: 'auto' }
+        }
+      }
+    },
+    {
+      slot: 'slot-modal-media',
+      popup: {
+        id: 'gallery-modal-media',
+        template: 'modal_media',
+        content: {
+          theme: 'white', // canonical alias for white-black — see §4.2
+          show_logo: true,
+          // safeUrl() (§10.2) only allows https: — a data: URI is correctly
+          // rejected there, same as it would be for a real popup, so this
+          // needs a real https host. A real popup's image_url is further
+          // restricted to cdn.libertex.* at ingestion (§5.1); that allowlist
+          // is enforced server-side, not by the SDK itself.
+          image_url: 'https://picsum.photos/seed/libertex-gallery/800/450',
+          image_alt: 'Placeholder hero image (stand-in for a CDN-hosted campaign photo)',
+          heading: 'Markets move fast',
+          body: 'Open an account in minutes and start trading on desktop or mobile.',
+          cta_label: 'Open an account',
+          cta_url: 'https://libertex.com/signup',
+          legal: { mode: 'auto' },
+          overrides: {
+            mobile: { heading: 'Markets move fast', body: 'Open an account in minutes.' }
+          }
+        }
+      }
+    },
+    {
+      // §9's rewrite: modal_form's content is just heading/body/theme/legal,
+      // same shape as `modal` — the actual fields, consent wording, and
+      // submission are resolved centrally (registration_domains/consent_texts
+      // in config.json) and rendered by embedding the registration widget,
+      // not typed here. See admin/README.md for the registry pattern this
+      // mirrors, and mock-landing-api.js for why this preview's script_src
+      // is NOT the real lib.libertex.com widget.
+      slot: 'slot-modal-form',
+      popup: {
+        id: 'gallery-modal-form',
+        template: 'modal_form',
+        content: {
+          theme: 'offwhite-orange',
+          heading: 'Open a live account',
+          body: 'Trade over 300 instruments from one account.',
+          cta_label: 'Create account',
+          legal: { mode: 'auto' }
+        }
+      }
+    },
+    {
+      slot: 'slot-questionnaire',
+      popup: {
+        id: 'gallery-questionnaire',
+        template: 'questionnaire',
+        content: {
+          theme: 'white-black',
+          show_logo: true,
+          heading: 'Quick one for you',
+          body: 'Two questions, ten seconds.',
+          legal: { mode: 'auto' },
+          questions: [
+            { id: 'market', text: 'Which market interests you most?',
+              options: [
+                { label: 'Forex', value: 'forex' },
+                { label: 'Crypto', value: 'crypto' },
+                { label: 'Stocks', value: 'stocks' },
+                { label: 'Commodities', value: 'commodities' }
+              ] },
+            { id: 'experience', text: 'How long have you been trading?',
+              options: [
+                { label: 'New to it', value: 'new' },
+                { label: 'Under a year', value: 'under_1y' },
+                { label: '1-3 years', value: '1_3y' },
+                { label: '3+ years', value: '3y_plus' }
+              ] }
+          ],
+          completion: {
+            heading: 'Thanks — that helps.',
+            body: 'See instruments matched to what you picked.',
+            cta_label: 'View instruments',
+            cta_url: 'https://libertex.com/instruments'
+          }
+        }
+      }
+    },
+    {
+      slot: 'slot-gamification',
+      popup: {
+        id: 'gallery-gamification',
+        template: 'gamification',
+        content: {
+          theme: 'black-orange',
+          show_logo: true,
+          heading: 'Think you can call the market?',
+          body: 'Pick an asset and predict its next move.',
+          legal: { mode: 'auto' },
+          duration_ms: 4000,
+          volatility_pct: 0.4,
+          win_body: "Correct call! Here's 10% off your next deposit fee.",
+          lose_body: 'Not quite — the market had other plans. Try a demo account instead.',
+          cta_label: 'Open an account',
+          cta_url: 'https://libertex.com/signup',
+          assets: [
+            { symbol: 'XAUUSD', label: 'Gold', start_price: 2380.5 },
+            { symbol: 'EURUSD', label: 'EUR/USD', start_price: 1.0845 },
+            { symbol: 'BTCUSD', label: 'Bitcoin', start_price: 62500 }
+          ]
+        }
+      }
+    },
+    {
+      slot: 'slot-lbx',
+      popup: {
+        id: 'gallery-lbx-modal',
+        template: 'modal',
+        content: {
+          theme: 'lbx-blue',
+          show_logo: false,
+          heading: 'Maximise Gold profits',
+          body: 'Spreads as low as 0.1 pips — seize your chance while gold is hitting an all-time high.',
+          cta_label: 'Trade now',
+          cta_url: 'https://lbx.com',
+          // localhost resolves to the cysec entity (see config.json), not lbx —
+          // auto mode would show the wrong regulator's warning here, so this
+          // preview uses off with a reason, same escape hatch every other
+          // template has. On lbx.com/promo.lbx.com, auto resolves correctly.
+          legal: { mode: 'off', off_reason: 'Style-guide preview on localhost — lbx entity only resolves on lbx.com/promo.lbx.com' }
+        }
+      }
+    }
+  ];
+
+  function render() {
+    samples.forEach(function (s) {
+      var el = document.getElementById(s.slot);
+      if (el) window.LxPopup.renderInline(s.popup, el);
+    });
+  }
+
+  // "Light"/"Dark" overrides every card to the same canonical pair (white/
+  // black for Libertex, lbx-white/lbx-black for LBX) so any theme/logo issue
+  // can be checked against both without hunting for the one card that
+  // happens to already use that background. "As configured" restores each
+  // card's original theme — the specific pairing it's meant to demonstrate.
+  samples.forEach(function (s) { s.originalTheme = s.popup.content.theme; });
+
+  function themeForMode(original, mode) {
+    if (mode === 'as-configured') return original;
+    var isLbx = original.indexOf('lbx') === 0;
+    if (mode === 'dark') return isLbx ? 'lbx-black' : 'black';
+    return isLbx ? 'lbx-white' : 'white';
+  }
+
+  document.getElementById('mode-toggle').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    this.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    samples.forEach(function (s) { s.popup.content.theme = themeForMode(s.originalTheme, btn.dataset.mode); });
+    render();
+  });
+
+  loadSdk(render);
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,65 @@
+'use strict';
+
+const express = require('express');
+const cors = require('cors');
+
+const store = require('./lib/store');
+const publisher = require('./lib/publisher');
+const collector = require('./lib/collector');
+
+const popupsRoutes = require('./routes/popups');
+const targetingRoutes = require('./routes/targeting');
+const statsRoutes = require('./routes/stats');
+const registrationRoutes = require('./routes/registration');
+const legalTextsRoutes = require('./routes/legalTexts');
+const settingsRoutes = require('./routes/settings');
+const ingestionRoutes = require('./routes/ingestion');
+
+const PORT = process.env.PORT || 8787;
+const app = express();
+app.use(cors());
+// Capture the raw body alongside the parsed one — HMAC verification (§10.4)
+// signs the exact bytes the source system sent, not a re-serialization.
+app.use(express.json({ limit: '256kb', verify: (req, res, buf) => { req.rawBody = buf; } }));
+
+// Simulated identity (§10.4: real deployment uses corporate SSO/OIDC with
+// Viewer/Operator roles, plus Compliance for the legal registry per §11.3.6).
+// The frontend's role switcher sends these headers; there is no real auth
+// here, which is fine for a local admin prototype and not fine for anything
+// that touches real popups.
+app.use(function (req, res, next) {
+  req.actor = {
+    email: req.header('x-lx-actor') || 'demo@libertex.com',
+    role: (req.header('x-lx-role') || 'viewer').toLowerCase()
+  };
+  next();
+});
+
+app.use('/api', popupsRoutes);
+app.use('/api', targetingRoutes);
+app.use('/api', statsRoutes);
+app.use('/api', registrationRoutes);
+app.use('/api', legalTextsRoutes);
+app.use('/api', settingsRoutes);
+
+// §14 — the Collector. Deliberately outside the HMAC-authed v1 router: a
+// visitor's browser can't hold a signing secret, so this is authorized by
+// shape-of-traffic (origin allowlist, rate limit, payload cap, dedup)
+// instead (§10.4). Matches the SDK's `settings.collectUrl` (sdk.js §14.2).
+// Registered before the /v1 router below so verifyIngestAuth never sees it.
+app.post('/v1/events', collector.handleEvents);
+
+app.use('/v1', ingestionRoutes);
+
+// Serves the compiled config.json the way a CDN would (§3) — for local
+// testing only; production serves this from S3 + CloudFront (§3.1).
+app.get('/dist/config.json', function (req, res) {
+  res.sendFile(publisher.CONFIG_PATH);
+});
+
+publisher.publish(store.load());
+
+app.listen(PORT, function () {
+  console.log('popup admin + ingestion API listening on http://localhost:' + PORT);
+  console.log('dev HMAC key: id=key-dev-default secret=dev-secret-change-me (see scripts/sign-request.js)');
+});
