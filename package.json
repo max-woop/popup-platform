@@ -7,7 +7,7 @@
     "node": "20.x"
   },
   "scripts": {
-    "build": "node build.js && npm install --prefix admin/server && npm install --prefix admin/web && npm run build --prefix admin/web",
+    "build": "node build.js && npm install --prefix admin/server --include=dev && npm install --prefix admin/web --include=dev && npm run build --prefix admin/web",
     "start": "node admin/server/index.js",
     "test": "node test.js"
   },
