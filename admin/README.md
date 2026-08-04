@@ -107,10 +107,9 @@ hold an HMAC secret), so it's gated by shape-of-traffic instead (§10.4):
   aggregation time.
 
 Events land in `raw_events` (SQLite) and `GET /api/stats` aggregates them
-live (`lib/statsAggregate.js`) — real data wins; `lib/stats.js`'s synthetic
-generator is a clearly-labeled fallback (`source: "synthetic"` in the
-response, surfaced as a banner in the Statistics screen) for popups with no
-traffic yet.
+live (`lib/statsAggregate.js`) — always real, correctly zero-filled data,
+no synthetic fallback. A popup with no traffic yet just shows zeros with a
+plain "no events collected yet" message, not fabricated numbers.
 
 **Wired to the Phase-0 SDK spike** (`../index.html`, `../sdk.js` at the repo
 root): `collectUrl` there now points at `http://localhost:8787/v1/events`
@@ -162,9 +161,6 @@ matching §10.4's "all mutations write to an audit log" requirement.
   would actually compute.
 
 **Simulated:**
-- Statistics for any popup with zero collected events — synthetic demo data
-  (`lib/stats.js`), clearly labeled (`source: "synthetic"`) rather than
-  silently faked. Real events, once collected, take over automatically.
 - The hourly-rollup aggregation job §14.3 describes doesn't exist — stats
   aggregate `raw_events` on the fly instead, fine at prototype volume.
 - `mock-landing-api.js` (repo root) stands in for the real llLanding widget —

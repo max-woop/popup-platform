@@ -54,6 +54,12 @@ build.js / test.js        Phase-0 build/lint/test scripts — inline CSS,
                           under the §8.1 size budget, then run 26 checks
 tealium-tag.html          the loader snippet to paste into Tealium iQ
 
+railway.json              explicit Railway build/start commands, rather
+                          than relying on Nixpacks' own heuristics
+nixpacks.toml             adds python3/gcc/gnumake to the build image —
+                          admin/server's better-sqlite3 needs to compile
+                          from source there (no prebuilt binary available)
+
 admin/
   README.md               detailed docs for everything below
   HOW_TO_SEND_CONTENT.md  practical guide for the source system: PUT a
@@ -62,10 +68,14 @@ admin/
                           in it is verified against a running server, not
                           just written
   server/                 Express: /api/* (admin) + /v1/popups/* (ingestion,
-                           §13) + /v1/events (collector, §14). index.js just
-                           wires the app together — routes/ has one file per
-                           resource (popups, targeting, stats, registration,
-                           legalTexts, settings, ingestion), sharing
+                           §13) + /v1/events (collector, §14) + (in a real
+                           deployment) the built admin UI and the root SDK
+                           demo pages under /demo/*, so one process is the
+                           whole deployable service (see "Deployment"
+                           below). index.js just wires the app together —
+                           routes/ has one file per resource (popups,
+                           targeting, stats, registration, legalTexts,
+                           settings, ingestion), sharing
                            requireRole/audit/popup(Summary|Detail)/republish
                            from lib/adminHelpers.js
     seed.json                seed data for both the JSON store and SQLite —
@@ -116,6 +126,52 @@ url-tester, stats, registration, legal/consent text publishing, settings).
 
 ---
 
+## Deployment
+
+Deployed to Railway as a single service — `npm run build` (root
+`build.js`'s SDK-spike build, then installs+builds `admin/server` and
+`admin/web`) followed by `npm start` (`node admin/server/index.js`),
+explicit in `railway.json` rather than left to Nixpacks' auto-detection.
+`admin/server` serves everything from one process: `/api/*` + `/v1/*`
+(unchanged), the built React admin UI at `/`, and the root SDK demo pages
+under `/demo/*` (an explicit file allowlist, not `express.static(repo
+root)` — the repo root also holds `node_modules`, `.git`, etc.).
+
+Two things that bit us getting here, worth knowing before touching this
+again:
+- **`better-sqlite3` needs a real C toolchain in the build image.** No
+  prebuilt binary matched Railway's Nixpacks image, so it compiles from
+  source via `node-gyp`, which needs Python + gcc — see `nixpacks.toml`.
+- **`/demo/config.json` must serve the live publisher output
+  (`publisher.CONFIG_PATH`), never the repo-root `config.json`.** The
+  root-level file is a frozen fixture from `build.js`/`test.js`'s own
+  Phase-0 testing, committed once and never regenerated — if a demo route
+  ever serves it directly, every admin edit (popups, `entity_domains`,
+  everything) silently stops showing up on `/demo/index.html` or
+  `/demo/templates.html`, with no error anywhere, because the page loads
+  fine and the JSON is valid — it's just stale. This exact bug shipped
+  once and took a while to trace because the symptom (legal fail-safe
+  suppression) looked like a data problem, not a routing one.
+
+**Persistence:** SQLite (`admin/server/data/`) lives on the container's
+ephemeral disk by default — a redeploy wipes it back to `seed.json`
+unless a Railway Volume is mounted at `admin/server/data`. `seed.json`
+itself lives one level up (`admin/server/seed.json`, not
+`admin/server/data/seed.json`) specifically so a Volume mount doesn't
+shadow it — see the comment at its `require` sites in `store.js`/
+`sqliteStore.js`. If a Volume *is* attached, seed-data fixes stop taking
+effect on redeploy (the existing `db.json` blocks re-seeding); use the
+live admin API instead (`POST /api/entity-domains`,
+`/api/registration-domains`, `/api/consent-texts` — all upserts, safe to
+call directly against production) rather than assuming a seed change plus
+a redeploy is enough.
+
+**`COLLECTOR_ALLOWED_ORIGINS`** (env var) needs to include the real
+deployed domain, or the collector 403s every event the demo pages send —
+defaults to local dev origins only.
+
+---
+
 ## What's implemented and real (not mocked)
 
 - **Full targeting/entity/legal resolution** — `admin/server/lib/targeting.js`
@@ -128,9 +184,29 @@ url-tester, stats, registration, legal/consent text publishing, settings).
 - **Collector** (§14) — origin allowlist, rate limiting, payload cap, dedup
   by `(impression_id, type, field_id, element_id)`. Verified end-to-end from
   a real browser tab through to the Statistics screen.
-- **Statistics** — real aggregation over collected events; falls back to
-  clearly-labeled synthetic demo data (`source: "synthetic"`) only for
-  popups with zero real traffic.
+- **Statistics** — real aggregation over collected events only, no
+  synthetic fallback. A popup with zero real traffic shows honest zeros
+  and a "no events collected yet" message rather than fabricated numbers
+  (`lib/stats.js`, the synthetic generator, has been deleted). The
+  ingestion API's own `GET /v1/popups/:id/stats` — what the source system
+  itself calls back — went through the same fix; it had the identical
+  synthetic-data problem, just unlabeled.
+- **Popups list has a live preview per row** — a "Preview" toggle expands
+  each row to render that popup through the real SDK's `renderInline()`
+  (`admin/web/src/lib/sdkLoader.js` loads `sdk.js`/`tokens.css` into the
+  admin app itself, once, shared across every preview), inside its own
+  Shadow DOM so there's no CSS collision with the admin app's own styles.
+  Full content comes from `GET /api/popups/:id` (`popupDetail`); the list
+  endpoint's `popupSummary` deliberately omits `content`.
+- **`entity_domains` is now admin-editable, not seed-only.** Every other
+  domain/entity registry (`registration_domains`, `legal_texts`,
+  `consent_texts`) already had a write endpoint; `entity_domains` didn't,
+  which meant registering a new demo/staging host required a redeploy
+  *and* a full reseed — a real problem once a Railway Volume is attached,
+  since that blocks reseeding entirely (see "Deployment" above).
+  `POST /api/entity-domains` (compliance-only, mirrors the
+  `registration_domains` pattern exactly) plus a small add-mapping form on
+  the Legal texts screen close that gap.
 - **All six templates render via the SDK** — `banner`, `modal`,
   `modal_media`, `modal_form`, `questionnaire`, `gamification` all have real
   `sdk.js` builders (`buildBanner`/`buildPanel`/`buildForm`/
@@ -278,9 +354,9 @@ the comments around `buildForm()`.
   nothing in this repo should ever actually submit a registration to
   Libertex's real backend. Swapping `registration_domains[host].script_src`
   to the real URL is the only change needed for a real deployment.
-- Statistics synthetic fallback, SQLite standing in for Postgres, admin
-  identity via a role-switcher instead of real SSO — all pre-existing,
-  documented in `admin/README.md`'s "What's real vs. simulated" section.
+- SQLite standing in for Postgres, admin identity via a role-switcher
+  instead of real SSO — pre-existing, documented in `admin/README.md`'s
+  "What's real vs. simulated" section.
 
 ---
 
@@ -313,9 +389,15 @@ the comments around `buildForm()`.
    thing under two names or genuinely different.
 4. **FCIL/bvi has no seeded consent text.** The real `.org` registration
    form snippet had no visible consent checkbox (unlike `.com`'s), so no
-   fake wording was invented for it — `consent_texts` only has a real,
-   evidenced `cysec`/`de` row. A `modal_form` popup on an `fcil`/`bvi` domain
-   will correctly fail-safe-suppress until Compliance provides real wording.
+   fake wording was invented for it — `consent_texts` only has `cysec`
+   rows (`de`, the original evidenced one, plus `en` — added because
+   `resolveConsentText`'s locale comes from the *visitor's browser*
+   (`navigator.language` via `buildContext()`), not anything the page
+   author sets, so an English-locale visitor hitting the only real
+   registration domain got fail-safe-suppressed too, not just non-`de`
+   demo traffic). A `modal_form` popup on an `fcil`/`bvi` domain will still
+   correctly fail-safe-suppress until Compliance provides real wording for
+   that entity.
 5. **Typography (§4.3), extended color spectrum hex values (§4.2 Q1b), tone
    of voice (§4.5)** are all still placeholders per the spec's open
    questions — cosmetic, swap-in-place once Design responds. **The logo
