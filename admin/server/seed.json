@@ -78,6 +78,14 @@
         "terms":   { "label": "Allgemeinen Geschäftsbedingungen", "url": "https://app.libertex.com/docs/de/list-of-documents.pdf" }
       },
       "effective_from": "2026-01-01T00:00:00Z", "effective_to": null,
+      "approved_by": "m.ivanova@libertex.com" },
+    { "id": "ct-2", "entity": "cysec", "locale": "en", "version": 1,
+      "text_template": "By registering an account I confirm that I am at least 18 years old and that I agree to the {privacy} and {terms} of Indication Investments Ltd.",
+      "links": {
+        "privacy": { "label": "Privacy and Cookies Policy", "url": "https://app.libertex.com/docs/en/privacy-and-cookies-policy.pdf" },
+        "terms":   { "label": "Terms and Conditions", "url": "https://app.libertex.com/docs/en/list-of-documents.pdf" }
+      },
+      "effective_from": "2026-01-01T00:00:00Z", "effective_to": null,
       "approved_by": "m.ivanova@libertex.com" }
   ],
 
