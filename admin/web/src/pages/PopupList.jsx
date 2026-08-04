@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { StatusBadge } from '../components/StatusBadge.jsx';
 import { useRole } from '../lib/RoleContext.jsx';
+import { loadSdk } from '../lib/sdkLoader';
 
 function formatSchedule(p) {
   if (!p.starts_at && !p.ends_at) return 'Always on';
@@ -20,6 +21,34 @@ function triggerLabel(t) {
 
 const STATUS_FILTERS = ['all', 'live', 'paused', 'draft', 'archived'];
 
+// Renders through the real SDK's renderInline() — the same preview API the
+// templates gallery uses — instead of a hand-built mock, so what's shown
+// here is guaranteed to match what a visitor actually gets (theme, legal
+// text, image handling, everything).
+function PopupPreview({ popupId }) {
+  const containerRef = useRef(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    Promise.all([loadSdk(), api.popups.get(popupId)])
+      .then(([sdk, detail]) => {
+        if (cancelled || !containerRef.current) return;
+        sdk.renderInline(detail, containerRef.current);
+      })
+      .catch((e) => { if (!cancelled) setError(e.message); });
+    return () => { cancelled = true; };
+  }, [popupId]);
+
+  return (
+    <div className="card-pad" style={{ background: 'var(--bg-sunken)' }}>
+      {error && <div className="alert alert-danger">Preview failed: {error}</div>}
+      <div ref={containerRef} />
+    </div>
+  );
+}
+
 export default function PopupList() {
   const { identity } = useRole();
   const [popups, setPopups] = useState(null);
@@ -27,6 +56,15 @@ export default function PopupList() {
   const [busyId, setBusyId] = useState(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [expanded, setExpanded] = useState(() => new Set());
+
+  function togglePreview(id) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   const load = useCallback(() => {
     api.popups.list().then(setPopups).catch((e) => setError(e.message));
@@ -98,34 +136,46 @@ export default function PopupList() {
             </thead>
             <tbody>
               {filtered.map((p) => (
-                <tr key={p.id}>
-                  <td><Link to={'/popups/' + p.id}>{p.name}</Link></td>
-                  <td className="mono small">{p.template}</td>
-                  <td><StatusBadge status={p.status} /></td>
-                  <td className="small">{formatSchedule(p)}</td>
-                  <td className="small">{triggerLabel(p.trigger)}</td>
-                  <td className="num">{p.priority}</td>
-                  <td className="small">{p.legal_mode}</td>
-                  <td>
-                    <div className="row">
-                      <Link className="btn btn-sm" to={'/popups/' + p.id}>Settings</Link>
-                      {canOperate && p.status !== 'archived' && (
-                        <button
-                          className="btn btn-sm"
-                          disabled={busyId === p.id}
-                          onClick={() => togglePause(p.id)}
-                        >
-                          {p.status === 'live' ? 'Pause' : 'Resume'}
+                <Fragment key={p.id}>
+                  <tr>
+                    <td><Link to={'/popups/' + p.id}>{p.name}</Link></td>
+                    <td className="mono small">{p.template}</td>
+                    <td><StatusBadge status={p.status} /></td>
+                    <td className="small">{formatSchedule(p)}</td>
+                    <td className="small">{triggerLabel(p.trigger)}</td>
+                    <td className="num">{p.priority}</td>
+                    <td className="small">{p.legal_mode}</td>
+                    <td>
+                      <div className="row">
+                        <button className="btn btn-sm" onClick={() => togglePreview(p.id)}>
+                          {expanded.has(p.id) ? 'Hide preview' : 'Preview'}
                         </button>
-                      )}
-                      {canOperate && p.status !== 'archived' && (
-                        <button className="btn btn-sm btn-danger" disabled={busyId === p.id} onClick={() => archive(p.id)}>
-                          Archive
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                        <Link className="btn btn-sm" to={'/popups/' + p.id}>Settings</Link>
+                        {canOperate && p.status !== 'archived' && (
+                          <button
+                            className="btn btn-sm"
+                            disabled={busyId === p.id}
+                            onClick={() => togglePause(p.id)}
+                          >
+                            {p.status === 'live' ? 'Pause' : 'Resume'}
+                          </button>
+                        )}
+                        {canOperate && p.status !== 'archived' && (
+                          <button className="btn btn-sm btn-danger" disabled={busyId === p.id} onClick={() => archive(p.id)}>
+                            Archive
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  {expanded.has(p.id) && (
+                    <tr>
+                      <td colSpan={8} style={{ padding: 0 }}>
+                        <PopupPreview popupId={p.id} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
