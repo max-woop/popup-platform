@@ -73,11 +73,20 @@ if (fs.existsSync(ADMIN_WEB_DIST)) {
 
 // Explicit allowlist rather than express.static(REPO_ROOT) — the repo root
 // also holds node_modules, .git, package.json, etc. that must never be served.
-const DEMO_FILES = ['index.html', 'templates.html', 'sdk.js', 'tokens.css', 'config.json', 'mock-landing-api.js'];
+// config.json is deliberately NOT in this list: the repo-root copy is a
+// frozen fixture for the root SDK spike's own test.js, not live data. The
+// demo pages need the same publisher output /dist/config.json serves —
+// otherwise every admin edit (popups, entity_domains, everything) would
+// silently never appear on /demo/index.html or /demo/templates.html.
+const DEMO_FILES = ['index.html', 'templates.html', 'sdk.js', 'tokens.css', 'mock-landing-api.js'];
 DEMO_FILES.forEach(function (file) {
   app.get('/demo/' + file, function (req, res) {
     res.sendFile(path.join(REPO_ROOT, file));
   });
+});
+
+app.get('/demo/config.json', function (req, res) {
+  res.sendFile(publisher.CONFIG_PATH);
 });
 
 // SPA catch-all for the React Router admin UI — must come last so it never
