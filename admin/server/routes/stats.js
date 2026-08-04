@@ -2,7 +2,6 @@
 
 const express = require('express');
 const sqliteStore = require('../lib/sqliteStore');
-const { statsForPopup } = require('../lib/stats');
 const statsAggregate = require('../lib/statsAggregate');
 const { popupSummary } = require('../lib/adminHelpers');
 
@@ -18,11 +17,7 @@ router.get('/stats', function (req, res) {
   if (popupId && !popups.length) return res.status(404).json({ error: 'not_found' });
 
   res.json(popups.map(function (p) {
-    // Real events win when they exist; synthetic demo data is a clearly
-    // labeled fallback so a brand-new popup's dashboard isn't just blank.
-    const real = statsAggregate.aggregateForPopup(p, range, device);
-    if (real) return real;
-    return Object.assign({ source: 'synthetic' }, statsForPopup({ id: p.external_id, template: p.template }, range, device));
+    return statsAggregate.aggregateForPopup(p, range, device);
   }));
 });
 

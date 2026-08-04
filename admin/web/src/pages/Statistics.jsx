@@ -135,8 +135,8 @@ export default function Statistics() {
 
         {stat && (
           <div className="card-pad stack">
-            {stat.source === 'synthetic' ? (
-              <div className="alert alert-suppressed">No real events collected yet for this popup — showing synthetic demo data instead.</div>
+            {stat.summary.impressions === 0 ? (
+              <div className="alert alert-info">No events collected yet for this popup (§14) — numbers below will update once real traffic comes in.</div>
             ) : (
               <div className="alert alert-info">Live data from collected events (§14).</div>
             )}

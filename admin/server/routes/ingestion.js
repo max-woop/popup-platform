@@ -11,7 +11,7 @@ const crypto = require('crypto');
 const sqliteStore = require('../lib/sqliteStore');
 const { verifyIngestAuth } = require('../lib/hmacAuth');
 const { validateUpsertBody, validateSemantics } = require('../lib/ingestSchemas');
-const { statsForPopup } = require('../lib/stats');
+const statsAggregate = require('../lib/statsAggregate');
 const { popupDetail, republish } = require('../lib/adminHelpers');
 
 const router = express.Router();
@@ -102,7 +102,7 @@ router.get('/popups/:external_id/stats', function (req, res) {
   const popup = sqliteStore.getByExternalId(req.params.external_id);
   if (!popup) return res.status(404).json({ error: 'not_found' });
   const range = Math.max(1, Math.min(90, parseInt(req.query.range, 10) || 30));
-  res.json(statsForPopup({ id: popup.external_id, template: popup.template }, range, 'all'));
+  res.json(statsAggregate.aggregateForPopup(popup, range, 'all'));
 });
 
 module.exports = router;

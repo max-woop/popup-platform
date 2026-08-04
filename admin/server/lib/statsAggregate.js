@@ -12,8 +12,6 @@ function aggregateForPopup(popup, days, deviceFilter) {
   const events = sqliteStore.eventsForPopupSince(popup.external_id, since)
     .filter((e) => deviceFilter === 'all' || e.device === deviceFilter);
 
-  if (events.length === 0) return null; // caller falls back to synthetic demo data
-
   const byDay = new Map();
   const byDevice = { desktop: 0, tablet: 0, mobile: 0 };
   const totals = { impressions: 0, views: 0, clicks: 0, closes: 0, form_starts: 0, form_submits: 0 };
