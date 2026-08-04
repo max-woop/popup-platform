@@ -55,7 +55,8 @@ export const api = {
 
   legalTexts: {
     get: () => request('/legal-texts'),
-    publish: (payload) => request('/legal-texts', { method: 'POST', body: JSON.stringify(payload) })
+    publish: (payload) => request('/legal-texts', { method: 'POST', body: JSON.stringify(payload) }),
+    saveDomain: (payload) => request('/entity-domains', { method: 'POST', body: JSON.stringify(payload) })
   },
 
   registration: {

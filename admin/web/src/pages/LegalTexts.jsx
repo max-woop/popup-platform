@@ -71,6 +71,42 @@ function PublishForm({ onPublished }) {
   );
 }
 
+function AddDomainForm({ onSaved }) {
+  const [host, setHost] = useState('');
+  const [entity, setEntity] = useState('cysec');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true); setError(null);
+    try {
+      await api.legalTexts.saveDomain({ host: host.trim().toLowerCase(), entity });
+      setHost('');
+      onSaved?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="field-row" onSubmit={submit} style={{ alignItems: 'flex-end', marginTop: 12 }}>
+      <div className="field">
+        <label>Domain</label>
+        <input type="text" placeholder="e.g. staging.libertex.com" value={host} onChange={(e) => setHost(e.target.value)} required />
+      </div>
+      <div className="field">
+        <label>Entity</label>
+        <EntitySelect value={entity} onChange={(e) => setEntity(e.target.value)} />
+      </div>
+      <div><button className="btn" disabled={busy}>{busy ? 'Saving…' : 'Add mapping'}</button></div>
+      {error && <div className="alert alert-danger">{error}</div>}
+    </form>
+  );
+}
+
 export default function LegalTexts() {
   const { identity } = useRole();
   const isCompliance = identity.role === 'compliance';
@@ -93,6 +129,11 @@ export default function LegalTexts() {
             ))}
           </tbody>
         </table>
+        {isCompliance ? (
+          <AddDomainForm onSaved={load} />
+        ) : (
+          <div className="alert alert-info" style={{ marginTop: 12 }}>Read-only for your current role. Switch to Compliance to add a mapping.</div>
+        )}
       </div>
 
       {Object.keys(data.history).map((entity) => (

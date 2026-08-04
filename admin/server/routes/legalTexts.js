@@ -17,6 +17,28 @@ router.get('/legal-texts', function (req, res) {
   });
 });
 
+// Domain → entity mapping (§11.3.2) — unlike registration_domains/consent_texts,
+// this had no write path at all before: entity_domains only ever came from
+// seed data, so adding a demo/staging host required a redeploy and, worse, a
+// full reseed (which a persistent Volume blocks). This makes it a normal
+// admin-editable registry like the others.
+router.post('/entity-domains', requireRole('compliance-only'), function (req, res) {
+  const db = store.load();
+  const body = req.body || {};
+  if (!body.host || !body.entity) {
+    return res.status(422).json({
+      error: 'validation_failed',
+      details: [{ path: 'host|entity', message: 'required' }]
+    });
+  }
+  const before = db.entity_domains[body.host] || null;
+  db.entity_domains[body.host] = body.entity;
+  audit(db, req, 'entity_domain.upsert', 'entity_domain', body.host, before, body.entity);
+  store.save(db);
+  republish();
+  res.status(before ? 200 : 201).json({ host: body.host, entity: body.entity });
+});
+
 router.post('/legal-texts', requireRole('compliance-only'), function (req, res) {
   const db = store.load();
   const body = req.body || {};
