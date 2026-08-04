@@ -78,27 +78,6 @@
 
 <main>
 
-<section class="info">
-  <strong>How to read this page.</strong> Each card is rendered in normal page
-  flow via <code>window.LxPopup.renderInline()</code> — a preview-only API that
-  reuses the exact same content builders and theme/legal resolution as a real
-  triggered popup, just without the fixed-position overlay. Resize the browser
-  below 768px and each modal widens edge-to-edge with only its top corners
-  rounded — the same CSS rule that turns it into a bottom sheet when actually
-  triggered (§5.3); the "sticks to the bottom of the viewport" part only shows
-  up with the fixed overlay <code>show()</code> uses, not in this static,
-  side-by-side layout. See <a href="./index.html">the interactive harness</a>
-  for that. The legal line at the bottom of each promotional template
-  resolves from the registry for this host, exactly as it would for a
-  visitor — it is not typed content. Every template accepts any theme —
-  the last card demonstrates this with the same <code>modal</code> builder
-  used above it, just themed for LBX (a sibling brand, separate palette)
-  instead of Libertex. Use the <strong>Preview theme</strong> toggle, top
-  right, to force every card to the same light or dark background — useful
-  for checking the logo or legibility without hunting for the one card that
-  already happens to use that background.
-</section>
-
 <div class="grid">
 
   <div class="card">
@@ -201,6 +180,27 @@
   </div>
 
 </div>
+
+<section class="info">
+  <strong>How to read this page.</strong> Each card is rendered in normal page
+  flow via <code>window.LxPopup.renderInline()</code> — a preview-only API that
+  reuses the exact same content builders and theme/legal resolution as a real
+  triggered popup, just without the fixed-position overlay. Resize the browser
+  below 768px and each modal widens edge-to-edge with only its top corners
+  rounded — the same CSS rule that turns it into a bottom sheet when actually
+  triggered (§5.3); the "sticks to the bottom of the viewport" part only shows
+  up with the fixed overlay <code>show()</code> uses, not in this static,
+  side-by-side layout. See <a href="./index.html">the interactive harness</a>
+  for that. The legal line at the bottom of each promotional template
+  resolves from the registry for this host, exactly as it would for a
+  visitor — it is not typed content. Every template accepts any theme —
+  the last card demonstrates this with the same <code>modal</code> builder
+  used above it, just themed for LBX (a sibling brand, separate palette)
+  instead of Libertex. Use the <strong>Preview theme</strong> toggle, top
+  right, to force every card to the same light or dark background — useful
+  for checking the logo or legibility without hunting for the one card that
+  already happens to use that background.
+</section>
 
 </main>
 
