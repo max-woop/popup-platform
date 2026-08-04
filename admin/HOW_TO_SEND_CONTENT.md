@@ -149,6 +149,84 @@ without a body).
 
 ---
 
+## Content parameter reference
+
+One table, every field `content` can hold across all six templates — for
+the exact JSON shape per template (which fields go together, full working
+examples), see **Content shape per template** right below this. This table
+is generated from the actual validation schema
+(`admin/server/lib/ingestSchemas.js`), not hand-maintained separately, so
+it can't drift from what the API actually accepts.
+
+| Field | Type / limit | Templates | Required |
+|---|---|---|---|
+| `heading` | string, ≤80 chars (≤120 on `banner`) | all six | ✓ everywhere it appears |
+| `subheading` | string, ≤100 chars | `modal` | — |
+| `body` | string, ≤400 chars (`modal`, `modal_media`, `modal_form`) or ≤200 (`questionnaire`, `gamification`) | all except `banner` | — |
+| `cta_label` | string, ≤30 chars | `banner`, `modal`, `modal_media`, `gamification`, `questionnaire.completion` | `modal_media` only |
+| `cta_url` | string, must start `https://` | same as `cta_label` | `modal_media` only |
+| `image_url` | string, must match `https://cdn.libertex.*` — any other host is a `400`, no exceptions | `modal_media` | ✓ |
+| `image_alt` | string, ≤125 chars | `modal_media` | — |
+| `theme` | one of the 18 canonical names — see below | all six | — |
+| `show_logo` | boolean, default `false` | all six | — |
+| `shape` | `"auto"` \| `"square"`, default `"auto"` | `modal` | — |
+| `position` | `"top"` \| `"bottom"`, default `"top"` | `banner` | — |
+| `legal` | object — see **Legal modes** below | all six | — (defaults to `{ "mode": "auto" }`) |
+| `overrides` | object, one key per device — see below | all six | — |
+| `questions` | array, 1–3 items | `questionnaire` | ✓ |
+| `completion` | object (`heading`/`body`/`cta_label`/`cta_url`) | `questionnaire` | — |
+| `duration_ms` | integer, 2000–15000, default 5000 | `gamification` | — |
+| `volatility_pct` | number, 0.05–5 | `gamification` | — |
+| `win_body` / `lose_body` | string, ≤200 chars each | `gamification` | — |
+| `assets` | array, 1–4 items (`symbol`/`label`/`start_price` each) | `gamification` | ✓ |
+
+**`modal_form` has no `cta_url`.** Its button submits the embedded
+registration widget, not a link — see that template's section below for
+why the rest of the form (fields, consent wording) isn't content you send
+at all.
+
+**Themes:** `orange`, `black`, `white` · `white-black`, `white-orange`,
+`black-white`, `black-orange`, `orange-black`, `orange-white`,
+`orange-brown`, `brown-orange`, `neon-black`, `offwhite-orange`,
+`orange200-black`, `silver-orange` · `lbx-blue`, `lbx-black`, `lbx-white`
+(LBX only — never mixed with Libertex content). Anything else is a `400`.
+
+**Legal modes** (`legal.mode`):
+| Mode | Extra required field | Behaviour |
+|---|---|---|
+| `auto` (default) | — | Resolves the risk warning from the registry by host+entity. Suppresses the whole popup if nothing resolves (§11.3.3) — never renders promotional content with no warning. |
+| `off` | `off_reason` (string, ≤200) | No legal slot — for genuinely non-promotional content (maintenance notices, etc). Audit-logged. |
+| `custom` | `custom_text` (string, ≤500) | Your exact wording, verbatim — Compliance-restricted in the admin UI, not enforced by this endpoint. |
+
+**`overrides`** (per-device content swaps): `{ "mobile": {...}, "tablet": {...}, "desktop": {...} }`,
+each a subset of `{ hidden, heading, body, image_url }`. `legal` cannot
+appear inside an override — that's not a convention, it's structurally
+impossible (the override schema doesn't have that property at all), so a
+device override can never hide a risk warning.
+
+### Updating content that's already live
+
+Same endpoint, same verb — `PUT /v1/popups/{external_id}` with the full
+new `content` object. There's no partial-update/PATCH for content: send
+the whole object every time, including fields you're not changing. The
+response code tells you which happened (`200` update, `201` create); the
+platform doesn't distinguish "changed the heading" from "changed
+everything" — both are just the current state replacing the last one.
+
+### About "sending data through Railway"
+
+There's no Railway-specific content channel — Railway is just where this
+same HTTPS API happens to be hosted once deployed. Point your source
+system at `https://<your-railway-domain>/v1/popups/{external_id}` instead
+of `http://localhost:8787/v1/popups/{external_id}`, sign the request the
+same way (§2 above), and everything else in this guide is identical.
+Railway environment variables are for the platform's own static
+configuration (`COLLECTOR_ALLOWED_ORIGINS`, `PORT`) — not a mechanism for
+per-popup content, which is always structured data sent to this API, not
+a config value.
+
+---
+
 ## Content shape per template
 
 `content` is validated against a **different schema per `template_id`** —
