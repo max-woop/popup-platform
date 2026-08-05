@@ -64,6 +64,20 @@ app.get('/dist/config.json', function (req, res) {
   res.sendFile(publisher.CONFIG_PATH);
 });
 
+// Same /dist/ prefix, a different physical directory: config.json above
+// comes from admin/server/data/dist (the live publisher output), sdk.js
+// here comes from the repo-root dist/ (node build.js's output — CSS
+// pre-inlined, under the §8.1 size budget) — this is what the website
+// install snippet in the admin Settings screen actually points at.
+// Guarded like the other build-output mounts below: absent until
+// `npm run build` has run.
+const BUILT_SDK_PATH = path.join(__dirname, '..', '..', 'dist', 'sdk.js');
+if (fs.existsSync(BUILT_SDK_PATH)) {
+  app.get('/dist/sdk.js', function (req, res) {
+    res.sendFile(BUILT_SDK_PATH);
+  });
+}
+
 // Deployment (e.g. Railway) runs this as the single web process, so it also
 // serves the built admin UI and the root-level SDK test harness — locally
 // these are served by separate dev servers instead (admin/web's Vite dev
