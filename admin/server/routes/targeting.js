@@ -48,10 +48,19 @@ router.post('/url-tester', function (req, res) {
       if (!targetingResult.matched) blockers.push('targeting rules did not match');
       if (legal.suppressed) blockers.push('legal fail-safe suppressed: ' + legal.reason);
 
+      // Cookie/HTML-element rules can't be verified for a hypothetical URL —
+      // a caveat, not a blocker, so it doesn't get lost inside "did not
+      // match" when the real reason is "this test can't see that far."
+      const caveats = [];
+      if (targetingResult.hasUnverifiable) {
+        caveats.push('Has a cookie or HTML-element targeting rule this test can\'t evaluate (no real browser/cookies/DOM for a hypothetical URL) — verify those manually. Treated as not-yet-satisfied above, which may understate whether this would actually render.');
+      }
+
       return {
         id: popup.external_id, name: popup.name, template: popup.template, priority: popup.priority,
         would_render: blockers.length === 0,
         blockers: blockers,
+        caveats: caveats,
         schedule: scheduleCheck,
         device_check: deviceCheck,
         targeting: targetingResult,

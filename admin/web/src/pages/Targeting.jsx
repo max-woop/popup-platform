@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { useRole } from '../lib/RoleContext.jsx';
 
-const DIMENSIONS = ['path', 'url', 'query', 'referrer', 'device', 'datalayer', 'language', 'country'];
+const DIMENSIONS = ['path', 'url', 'query', 'referrer', 'device', 'datalayer', 'language', 'country', 'cookie', 'element_exists'];
 const OPERATORS_BY_DIM = {
   path: ['equals', 'contains', 'starts_with', 'ends_with', 'regex', 'in'],
   url: ['equals', 'contains', 'starts_with', 'ends_with', 'regex', 'in'],
@@ -11,10 +11,65 @@ const OPERATORS_BY_DIM = {
   device: ['in'],
   datalayer: ['equals', 'in', 'exists'],
   language: ['equals', 'in'],
-  country: ['equals', 'in']
+  country: ['equals', 'in'],
+  cookie: ['exists', 'equals', 'contains'],
+  // Presence-only — evaluated client-side (§6.1); the URL tester can't see
+  // a real DOM, so it flags any rule using this dimension as unverifiable.
+  element_exists: ['exists']
 };
-const NEEDS_ATTR = new Set(['query', 'datalayer']);
+const NEEDS_ATTR = new Set(['query', 'datalayer', 'cookie']);
 const DEVICES = ['desktop', 'tablet', 'mobile'];
+const LANGUAGES = [
+  { code: 'en', label: 'English' }, { code: 'de', label: 'German' }, { code: 'fr', label: 'French' },
+  { code: 'es', label: 'Spanish' }, { code: 'it', label: 'Italian' }, { code: 'pt', label: 'Portuguese' },
+  { code: 'ru', label: 'Russian' }, { code: 'ar', label: 'Arabic' }, { code: 'zh', label: 'Chinese' }
+];
+
+// Drives itself off whatever language/in rule already exists in `groups`
+// (any position) rather than owning separate state — so it stays in sync
+// with the generic rule builder below instead of becoming a second source
+// of truth for the same data.
+function BrowserLanguagePicker({ groups, setGroups, canOperate }) {
+  let gi = -1, ri = -1;
+  groups.forEach((g, i) => (g || []).forEach((r, j) => { if (r.d === 'language' && gi === -1) { gi = i; ri = j; } }));
+  const rule = gi === -1 ? null : groups[gi][ri];
+  const selected = !rule ? [] : Array.isArray(rule.v) ? rule.v : [rule.v].filter(Boolean);
+
+  function toggle(code) {
+    const next = selected.includes(code) ? selected.filter((c) => c !== code) : [...selected, code];
+    setGroups((prev) => {
+      const copy = JSON.parse(JSON.stringify(prev));
+      if (gi === -1) {
+        if (next.length) copy.push([{ d: 'language', op: 'in', v: next }]);
+        return copy;
+      }
+      if (next.length) { copy[gi][ri] = { d: 'language', op: 'in', v: next }; return copy; }
+      copy[gi].splice(ri, 1);
+      if (!copy[gi].length) copy.splice(gi, 1);
+      return copy;
+    });
+  }
+
+  return (
+    <div className="card" style={{ boxShadow: 'none' }}>
+      <div className="card-pad" style={{ padding: 12 }}>
+        <label className="small muted" style={{ display: 'block', marginBottom: 6 }}>Browser language</label>
+        <div className="chip-select">
+          {LANGUAGES.map((l) => (
+            <button key={l.code} type="button" disabled={!canOperate}
+              className={'chip' + (selected.includes(l.code) ? ' selected' : '')}
+              onClick={() => toggle(l.code)}>
+              {l.label}
+            </button>
+          ))}
+        </div>
+        <p className="field-hint">
+          {selected.length ? 'Shows only for these browser languages.' : 'No restriction — shows for any browser language.'}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function emptyRule() { return { d: 'path', op: 'starts_with', v: '/promo', a: '', negate: false }; }
 
@@ -84,14 +139,28 @@ function RuleBuilder({ popups, onSaved }) {
         </select>
       </div>
       <div className="card-pad stack">
-        {groups.length === 0 && <p className="muted small">No targeting rules — popup shows on every page (still subject to schedule, devices, caps).</p>}
+        <BrowserLanguagePicker groups={groups} setGroups={setGroups} canOperate={canOperate} />
 
-        {groups.map((group, gi) => (
+        {(() => {
+          // The language rule the picker above owns is rendered as chips,
+          // not again as a raw dropdown row below — same underlying data,
+          // shown once. langGi/langRi is the first language rule anywhere.
+          let langGi = -1, langRi = -1;
+          groups.forEach((g, i) => (g || []).forEach((r, j) => { if (r.d === 'language' && langGi === -1) { langGi = i; langRi = j; } }));
+          const otherRulesExist = groups.some((g, gi) => (g || []).some((r, ri) => !(gi === langGi && ri === langRi)));
+
+          return <>
+            {!otherRulesExist && <p className="muted small">No other targeting rules — popup shows on every page (still subject to schedule, devices, caps).</p>}
+
+            {groups.map((group, gi) => {
+              const visible = group.map((rule, ri) => ({ rule, ri })).filter(({ ri }) => !(gi === langGi && ri === langRi));
+              if (!visible.length) return null;
+              return (
           <div key={gi}>
             {gi > 0 && <div className="row" style={{ margin: '4px 0', color: 'var(--text-muted)', fontSize: 11, fontWeight: 700 }}>AND</div>}
             <div className="card" style={{ boxShadow: 'none' }}>
               <div className="card-pad stack" style={{ padding: 12 }}>
-                {group.map((rule, ri) => {
+                {visible.map(({ rule, ri }) => {
                   const ops = OPERATORS_BY_DIM[rule.d] || [];
                   return (
                     <div key={ri}>
@@ -123,6 +192,9 @@ function RuleBuilder({ popups, onSaved }) {
                               );
                             })}
                           </div>
+                        ) : rule.d === 'element_exists' ? (
+                          <input type="text" disabled={!canOperate} placeholder="CSS selector, e.g. .promo-banner" style={{ minWidth: 200, flex: 1 }}
+                            value={valueFor(rule)} onChange={(e) => onValueChange(gi, ri, rule, e.target.value)} />
                         ) : rule.op !== 'exists' ? (
                           <input type="text" disabled={!canOperate} style={{ minWidth: 160, flex: 1 }}
                             value={valueFor(rule)} onChange={(e) => onValueChange(gi, ri, rule, e.target.value)} />
@@ -141,7 +213,10 @@ function RuleBuilder({ popups, onSaved }) {
             </div>
             {canOperate && <button className="btn btn-sm btn-danger" style={{ marginTop: 6 }} onClick={() => removeGroup(gi)}>Remove group</button>}
           </div>
-        ))}
+              );
+            })}
+          </>;
+        })()}
 
         {canOperate && (
           <div className="row">
@@ -243,6 +318,11 @@ function UrlTester() {
                     <ul className="small muted" style={{ margin: '8px 0 0', paddingLeft: 18 }}>
                       {p.blockers.map((b, i) => <li key={i}>{b}</li>)}
                     </ul>
+                  )}
+                  {p.caveats?.length > 0 && (
+                    <div className="alert alert-info small" style={{ marginTop: 8 }}>
+                      {p.caveats.map((c, i) => <div key={i}>⚠ {c}</div>)}
+                    </div>
                   )}
                   <div className="small muted" style={{ marginTop: 8 }}>
                     Legal: {p.legal.suppressed ? <span style={{ color: 'var(--danger)' }}>suppressed — {p.legal.reason}</span> : (p.legal.text || '(none required)')}

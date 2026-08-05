@@ -69,6 +69,12 @@ function testOperator(actual, op, expected) {
   }
 }
 
+// cookie/element_exists read document.cookie / the live DOM — neither exists
+// for a hypothetical URL evaluated server-side. Flagged unverifiable rather
+// than silently evaluated (and likely wrong), per this file's job of never
+// lying to whoever's reading the URL tester's answer.
+var CLIENT_ONLY_DIMENSIONS = { cookie: true, element_exists: true };
+
 function dimensionValue(rule, ctx) {
   switch (rule.d) {
     case 'path':      return ctx.path;
@@ -87,21 +93,24 @@ function dimensionValue(rule, ctx) {
 // URL tester can explain exactly which rule blocked a popup.
 function evaluateTargeting(popup, ctx) {
   var groups = popup.targeting || [];
-  if (!groups.length) return { matched: true, groups: [] };
+  if (!groups.length) return { matched: true, groups: [], hasUnverifiable: false };
 
+  var hasUnverifiable = false;
   var groupResults = groups.map(function (group) {
     var rules = (group || []).map(function (rule) {
-      var actual = dimensionValue(rule, ctx);
-      var hit = testOperator(actual, rule.op, rule.v);
-      if (rule.negate) hit = !hit;
-      return { dimension: rule.d, attr: rule.a, operator: rule.op, expected: rule.v, actual: actual, matched: hit };
+      var unverifiable = !!CLIENT_ONLY_DIMENSIONS[rule.d];
+      if (unverifiable) hasUnverifiable = true;
+      var actual = unverifiable ? undefined : dimensionValue(rule, ctx);
+      var hit = unverifiable ? false : testOperator(actual, rule.op, rule.v);
+      if (rule.negate && !unverifiable) hit = !hit;
+      return { dimension: rule.d, attr: rule.a, operator: rule.op, expected: rule.v, actual: actual, matched: hit, unverifiable: unverifiable };
     });
     var groupMatched = rules.length === 0 ? true : rules.some(function (r) { return r.matched; });
     return { matched: groupMatched, rules: rules };
   });
 
   var matched = groupResults.every(function (g) { return g.matched; });
-  return { matched: matched, groups: groupResults };
+  return { matched: matched, groups: groupResults, hasUnverifiable: hasUnverifiable };
 }
 
 function withinSchedule(popup, now) {

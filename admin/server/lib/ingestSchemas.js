@@ -194,7 +194,11 @@ const ruleSchema = {
   additionalProperties: false,
   required: ['d', 'op'],
   properties: {
-    d: { enum: ['path', 'url', 'query', 'referrer', 'device', 'datalayer', 'language', 'country'] },
+    // cookie/element_exists are client-only (document.cookie, DOM presence) —
+    // the admin URL tester can't evaluate them for a hypothetical URL, so it
+    // flags rules using either as unverifiable rather than silently treating
+    // them as non-matching (lib/targeting.js).
+    d: { enum: ['path', 'url', 'query', 'referrer', 'device', 'datalayer', 'language', 'country', 'cookie', 'element_exists'] },
     op: { enum: ['equals', 'not_equals', 'contains', 'starts_with', 'ends_with', 'regex', 'in', 'not_in', 'exists'] },
     a: { type: 'string', maxLength: 60 },
     v: {},
@@ -220,7 +224,9 @@ const topLevelSchema = {
       additionalProperties: false,
       required: ['type'],
       properties: {
-        type: { enum: ['immediate', 'delay', 'scroll', 'exit_intent', 'element_click'] },
+        // value's unit depends on type: delay is milliseconds, scroll is
+        // percent, inactivity is seconds — see sdk.js's arm().
+        type: { enum: ['immediate', 'delay', 'scroll', 'exit_intent', 'element_click', 'inactivity'] },
         value: {},
         selector: { type: 'string', maxLength: 200 }
       }

@@ -241,6 +241,17 @@
     }
   }
 
+  // rule.a is the cookie name (same convention as query/datalayer).
+  function readCookie(name) {
+    if (!name) return null;
+    var pairs = document.cookie.split('; ');
+    for (var i = 0; i < pairs.length; i++) {
+      var eq = pairs[i].indexOf('=');
+      if (pairs[i].slice(0, eq) === name) return decodeURIComponent(pairs[i].slice(eq + 1));
+    }
+    return null;
+  }
+
   function dimensionValue(rule, ctx) {
     switch (rule.d) {
       case 'path':      return ctx.path;
@@ -251,6 +262,9 @@
       case 'language':  return ctx.locale;
       case 'country':   return ctx.country;
       case 'datalayer': return ctx.dataLayer ? ctx.dataLayer[rule.a] : undefined;
+      case 'cookie':    return readCookie(rule.a);
+      case 'element_exists': // rule.v is a selector; pair with op:'exists'
+        try { return document.querySelector(rule.v) ? 'yes' : ''; } catch (e) { return ''; }
       default:          return undefined;
     }
   }
@@ -610,15 +624,15 @@
     } catch (e) { log('utag.view failed', e); }
   }
 
-  // §9.5's Shadow DOM exception has a CSS consequence worth spelling out:
-  // `::slotted()` only ever matches the single slotted element itself, never
-  // its descendants — so the shadow stylesheet's `.lx-field`/`.lx-checkbox-
-  // row`/etc rules (which target *children* of the slotted <form>) cannot
-  // reach any of this. Every visual property below is applied inline
-  // instead, referencing the same design tokens via var() — those inherit
-  // across the shadow boundary just fine, only class-based descendant
-  // selectors don't. tokens.css remains the source of truth for the actual
-  // values; only *how* they're applied differs for this one template.
+  /* §9.5's Shadow DOM exception has a CSS consequence worth spelling out:
+     `::slotted()` only ever matches the single slotted element itself, never
+     its descendants — so the shadow stylesheet's `.lx-field`/`.lx-checkbox-
+     row`/etc rules (which target *children* of the slotted <form>) cannot
+     reach any of this. Every visual property below is applied inline
+     instead, referencing the same design tokens via var() — those inherit
+     across the shadow boundary just fine, only class-based descendant
+     selectors don't. tokens.css remains the source of truth for the actual
+     values; only *how* they're applied differs for this one template. */
   var FORM_STYLE = {
     form: 'display:flex;flex-direction:column;gap:16px;font-family:var(--lx-font);margin:0 0 8px;',
     field: 'display:flex;flex-direction:column;gap:4px;',
@@ -1407,6 +1421,31 @@
       return;
     }
 
+    if (t.type === 'element_click') {
+      if (!t.selector) return;
+      var onClick = function (e) {
+        if (!e.target || !e.target.closest || !e.target.closest(t.selector)) return;
+        document.removeEventListener('click', onClick);
+        if (stillAllowed(popup)) show(popup);
+      };
+      document.addEventListener('click', onClick);
+      return;
+    }
+
+    if (t.type === 'inactivity') {
+      var ms = (t.value || 30) * 1000; // seconds, not ms
+      var evts = ['mousemove', 'keydown', 'scroll', 'touchstart'];
+      var timer;
+      var fire = function () {
+        evts.forEach(function (e) { window.removeEventListener(e, reset); });
+        if (stillAllowed(popup)) show(popup);
+      };
+      var reset = function () { clearTimeout(timer); timer = setTimeout(fire, ms); };
+      evts.forEach(function (e) { window.addEventListener(e, reset, { passive: true }); });
+      reset();
+      return;
+    }
+
     log('unsupported trigger in spike:', t.type);
   }
 
@@ -1523,14 +1562,14 @@
     return engine.active.map(function (i) { return i.popup.id; });
   }, 'getActive');
 
-  // Renders a popup definition into normal page flow instead of the fixed,
-  // full-viewport overlay show() uses — for a template gallery / style-guide
-  // page, not for real triggered popups. Reuses the exact same builders, so
-  // it's an accurate preview rather than a hand-drawn mockup: real themes,
-  // real legal resolution (including the §11.3.3 fail-safe), real form
-  // validation. `popup` need not be a member of a loaded config's popup
-  // list — only popup.content.legal.mode and the config's entity/legal maps
-  // matter for resolution.
+  /* Renders a popup definition into normal page flow instead of the fixed,
+     full-viewport overlay show() uses — for a template gallery / style-guide
+     page, not for real triggered popups. Reuses the exact same builders, so
+     it's an accurate preview rather than a hand-drawn mockup: real themes,
+     real legal resolution (including the §11.3.3 fail-safe), real form
+     validation. `popup` need not be a member of a loaded config's popup
+     list — only popup.content.legal.mode and the config's entity/legal maps
+     matter for resolution. */
   root.renderInline = safe(function (popup, container) {
     if (!container) return;
 

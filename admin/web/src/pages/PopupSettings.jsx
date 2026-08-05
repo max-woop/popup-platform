@@ -12,13 +12,15 @@ const TRIGGER_ICON_PATHS = {
   delay: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 3.5" /></>,
   scroll: <><path d="M12 4v13" /><path d="M6.5 12.5L12 18l5.5-5.5" /></>,
   exit_intent: <><path d="M15 3h6v6" /><path d="M21 3l-9 9" /><path d="M10 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5" /></>,
-  element_click: <path d="M6 3l14 6-6 2-2 6-6-14z" />
+  element_click: <path d="M6 3l14 6-6 2-2 6-6-14z" />,
+  inactivity: <><circle cx="12" cy="12" r="9" /><path d="M10 9v6M14 9v6" /></>
 };
 
 const TRIGGER_OPTIONS = [
   { value: 'immediate', label: 'Immediate', desc: 'Shows as soon as the page loads.' },
   { value: 'delay', label: 'Delay', desc: 'Shows after a fixed number of milliseconds.' },
   { value: 'scroll', label: 'Scroll depth', desc: 'Shows once the visitor scrolls past a depth.' },
+  { value: 'inactivity', label: 'Inactivity', desc: 'Shows after the visitor stops interacting for a while.' },
   { value: 'exit_intent', label: 'Exit intent', desc: 'Shows when the cursor moves to leave. Desktop only.' },
   { value: 'element_click', label: 'Element click', desc: 'Shows when a specific page element is clicked.' }
 ];
@@ -143,7 +145,7 @@ export default function PopupSettings() {
           </div>
 
           <div className="card">
-            <div className="card-header"><h2>Trigger &amp; frequency</h2></div>
+            <div className="card-header"><div><h2>User behavior</h2><p>When would you like the popup to show up?</p></div></div>
             <div className="card-pad">
               <div className="field">
                 <label>Trigger type</label>
@@ -153,7 +155,7 @@ export default function PopupSettings() {
                     return (
                       <button key={opt.value} type="button" disabled={!canOperate}
                         className={'choice-card' + (selected ? ' selected' : '')}
-                        onClick={() => setField('trigger', { type: opt.value, value: popup.trigger?.value })}>
+                        onClick={() => setField('trigger', { type: opt.value, value: popup.trigger?.value, selector: popup.trigger?.selector })}>
                         {selected && <span className="choice-badge">✓</span>}
                         <span className="choice-icon"><TriggerIcon type={opt.value} /></span>
                         <span className="choice-title">{opt.label}</span>
@@ -163,33 +165,63 @@ export default function PopupSettings() {
                   })}
                 </div>
               </div>
-              {['delay', 'scroll'].includes(popup.trigger?.type) && (
+              {['delay', 'scroll', 'inactivity'].includes(popup.trigger?.type) && (
                 <div className="field" style={{ maxWidth: 200 }}>
-                  <label>{popup.trigger.type === 'delay' ? 'Delay (ms)' : 'Scroll depth (%)'}</label>
+                  <label>
+                    {popup.trigger.type === 'delay' ? 'Delay (ms)'
+                      : popup.trigger.type === 'scroll' ? 'Scroll depth (%)'
+                      : 'Inactivity (seconds)'}
+                  </label>
                   <input type="number" disabled={!canOperate} value={popup.trigger.value || 0}
                     onChange={(e) => setField('trigger.value', parseInt(e.target.value, 10) || 0)} />
                 </div>
               )}
-              <div className="legend-line" />
-
-              <div className="field-row-3">
-                <div className="field">
-                  <label>Max impressions</label>
-                  <input type="number" disabled={!canOperate} value={popup.frequency?.max_impressions ?? ''}
-                    onChange={(e) => setField('frequency.max_impressions', parseInt(e.target.value, 10) || null)} />
+              {popup.trigger?.type === 'element_click' && (
+                <div className="field" style={{ maxWidth: 320 }}>
+                  <label>CSS selector</label>
+                  <input type="text" disabled={!canOperate} placeholder="e.g. #open-account-btn"
+                    value={popup.trigger.selector || ''}
+                    onChange={(e) => setField('trigger.selector', e.target.value)} />
+                  <p className="field-hint">Fires when the visitor clicks any element matching this selector.</p>
                 </div>
-                <div className="field">
-                  <label>Per</label>
+              )}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header"><div><h2>Frequency</h2><p>How often can this popup show, and when should it stop?</p></div></div>
+            <div className="card-pad stack">
+              <div className="field">
+                <label>Display frequency</label>
+                <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span className="small muted">Show up to</span>
+                  <input type="number" style={{ width: 70 }} disabled={!canOperate}
+                    value={popup.frequency?.max_impressions ?? ''} placeholder="∞"
+                    onChange={(e) => setField('frequency.max_impressions', e.target.value === '' ? null : (parseInt(e.target.value, 10) || 0))} />
+                  <span className="small muted">times per</span>
                   <select disabled={!canOperate} value={popup.frequency?.per || 'session'}
                     onChange={(e) => setField('frequency.per', e.target.value)}>
                     {FREQ_PER.map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
-                <div className="field">
-                  <label>Dismiss TTL (days)</label>
-                  <input type="number" disabled={!canOperate} value={popup.frequency?.dismiss_ttl_days ?? ''}
+                <p className="field-hint">
+                  {popup.frequency?.max_impressions == null
+                    ? 'No per-popup cap — blank means display on every page view (still subject to the platform cap below).'
+                    : null}
+                </p>
+              </div>
+              <div className="field">
+                <label>Stop displaying after user action</label>
+                <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span className="small muted">Don't show again for</span>
+                  <input type="number" style={{ width: 70 }} disabled={!canOperate}
+                    value={popup.frequency?.dismiss_ttl_days ?? 0}
                     onChange={(e) => setField('frequency.dismiss_ttl_days', parseInt(e.target.value, 10) || 0)} />
+                  <span className="small muted">days after it's dismissed</span>
                 </div>
+                <p className="field-hint">
+                  {!popup.frequency?.dismiss_ttl_days ? 'Never stop displaying the popup after a dismissal (0 days).' : null}
+                </p>
               </div>
               <p className="field-hint">Platform cap still applies on top: 1 per page view, 2 per session.</p>
             </div>
