@@ -25,8 +25,12 @@ Local dev has a working key out of the box, no admin action needed:
 id:     key-dev-default
 secret: dev-secret-change-me
 ```
-Everything below uses that key against `http://localhost:8787`. Swap the
-host and secret for your real deployment; nothing else changes.
+Everything below uses that key against `http://localhost:8787` — swap in
+your own host and a real, non-default key for anything beyond local
+testing. Current production deployment:
+```
+https://popup-banner-platform-production.up.railway.app
+```
 
 ## 2. Sign the request
 
@@ -217,9 +221,10 @@ everything" — both are just the current state replacing the last one.
 
 There's no Railway-specific content channel — Railway is just where this
 same HTTPS API happens to be hosted once deployed. Point your source
-system at `https://<your-railway-domain>/v1/popups/{external_id}` instead
-of `http://localhost:8787/v1/popups/{external_id}`, sign the request the
-same way (§2 above), and everything else in this guide is identical.
+system at `https://popup-banner-platform-production.up.railway.app/v1/popups/{external_id}`
+instead of `http://localhost:8787/v1/popups/{external_id}`, sign the
+request the same way (§2 above), and everything else in this guide is
+identical.
 Railway environment variables are for the platform's own static
 configuration (`COLLECTOR_ALLOWED_ORIGINS`, `PORT`) — not a mechanism for
 per-popup content, which is always structured data sent to this API, not
