@@ -65,4 +65,34 @@ function aggregateForPopup(popup, days, deviceFilter) {
 
 function round(n) { return Math.round(n * 1000) / 1000; }
 
-module.exports = { aggregateForPopup };
+// conv_rate is interactions/views throughout — the one definition that
+// applies across every template (a banner only has clicks to give;
+// a form has starts/submits; a questionnaire has answers), rather than
+// picking a template-specific metric like form_conversion and calling it
+// "the" conversion rate for popups that were never a form to begin with.
+function withConvRate(row) {
+  return { label: row.label, views: row.views || 0, interactions: row.interactions || 0, conv_rate: row.views ? round(row.interactions / row.views) : 0 };
+}
+
+// Site-wide (every popup, every template) rather than per-popup — the
+// "where are visitors from / what pages do they land on" view a source
+// system or marketer wants, distinct from aggregateForPopup's per-campaign
+// breakdown above.
+function siteOverview(days) {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const summary = sqliteStore.overviewSummary(since);
+  return {
+    range_days: days,
+    summary: {
+      views: summary.views,
+      leads: summary.leads,
+      interactions: summary.interactions,
+      conv_rate: summary.views ? round(summary.interactions / summary.views) : 0
+    },
+    referrers: sqliteStore.overviewByReferrer(since).map(withConvRate),
+    pages: sqliteStore.overviewByPage(since).map(withConvRate),
+    countries: sqliteStore.overviewByCountry(since).map(withConvRate)
+  };
+}
+
+module.exports = { aggregateForPopup, siteOverview };

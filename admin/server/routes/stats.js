@@ -21,6 +21,14 @@ router.get('/stats', function (req, res) {
   }));
 });
 
+// Site-wide analytics (every popup combined) — visitor geography, referrer,
+// and page breakdowns, distinct from /stats above which is always scoped to
+// one popup at a time.
+router.get('/stats/overview', function (req, res) {
+  const range = Math.max(1, Math.min(90, parseInt(req.query.range, 10) || 30));
+  res.json(statsAggregate.siteOverview(range));
+});
+
 router.get('/questionnaire-popups', function (req, res) {
   res.json(sqliteStore.listPopups()
     .filter(function (p) { return p.template === 'questionnaire'; })

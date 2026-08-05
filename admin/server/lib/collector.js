@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const geoip = require('geoip-lite');
 const sqliteStore = require('./sqliteStore');
 
 // §10.4 — "Collector: unauthenticated by necessity; protected by origin
@@ -55,6 +56,24 @@ function sanitizePageUrl(url) {
   }
 }
 
+// Same "strip to the minimum useful thing" reasoning as sanitizePageUrl —
+// a full referrer URL can carry query-string PII (e.g. a search query, an
+// email tracking token); the hostname is what "which site sent this
+// visitor" actually needs.
+function sanitizeReferrer(url) {
+  if (typeof url !== 'string' || !url) return '';
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; }
+}
+
+// Country only, never a full geo-IP profile — resolved from the actual
+// request IP (never client-supplied, which could just be spoofed) and nothing
+// else about the IP is kept. geoip-lite returns null for private/unroutable
+// addresses (e.g. every request in local dev), which is expected there.
+function resolveCountry(ip) {
+  const hit = geoip.lookup(ip);
+  return (hit && hit.country) || '';
+}
+
 // Coarse "impossible timings" bot signal (§14.3) applied at ingest rather
 // than at the aggregation step the spec describes — a simplification, not
 // a full replacement for a real bot-filtering pass over raw events.
@@ -87,6 +106,9 @@ function handleEvents(req, res) {
   if (!checkRateLimit(ipHash)) {
     return res.status(429).json({ error: 'rate_limited' });
   }
+  // One lookup per batch, not per event — same requester, same IP, for
+  // every event in this request.
+  const country = resolveCountry(req.ip);
 
   const events = Array.isArray(req.body?.events) ? req.body.events : null;
   if (!events) return res.status(400).json({ error: 'validation_failed', message: '"events" array required' });
@@ -107,6 +129,8 @@ function handleEvents(req, res) {
       impression_id: raw.impression_id,
       type: raw.type,
       page_url: sanitizePageUrl(raw.page_url) || '',
+      referrer: sanitizeReferrer(raw.referrer),
+      country: country,
       device: ['desktop', 'tablet', 'mobile'].includes(raw.device) ? raw.device : 'desktop',
       session_id: typeof raw.session_id === 'string' ? raw.session_id : '',
       legal_version: raw.legal_version == null ? '' : String(raw.legal_version),

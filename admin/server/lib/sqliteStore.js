@@ -77,10 +77,20 @@ db.exec(`
     received_at   TEXT NOT NULL,
     origin        TEXT,
     ip_hash       TEXT,
+    referrer      TEXT,
+    country       TEXT,
     UNIQUE (impression_id, type, field_id, element_id)
   );
   CREATE INDEX IF NOT EXISTS idx_raw_events_popup_date ON raw_events (popup_id, occurred_at);
 `);
+
+// referrer/country were added after raw_events already shipped — CREATE
+// TABLE IF NOT EXISTS above is a no-op against a database file that already
+// has the table, so a database from before this change needs these columns
+// added explicitly. Safe to run every boot: the catch is just "already there."
+['referrer', 'country'].forEach(function (col) {
+  try { db.exec('ALTER TABLE raw_events ADD COLUMN ' + col + ' TEXT'); } catch (e) { /* column already exists */ }
+});
 
 function rowToPopup(row) {
   if (!row) return null;
@@ -157,8 +167,8 @@ const stmts = {
 
   insertEvent: db.prepare(`
     INSERT OR IGNORE INTO raw_events
-      (id, popup_id, impression_id, type, page_url, device, session_id, legal_version, field_id, element_id, occurred_at, received_at, origin, ip_hash)
-    VALUES (@id, @popup_id, @impression_id, @type, @page_url, @device, @session_id, @legal_version, @field_id, @element_id, @occurred_at, @received_at, @origin, @ip_hash)
+      (id, popup_id, impression_id, type, page_url, device, session_id, legal_version, field_id, element_id, occurred_at, received_at, origin, ip_hash, referrer, country)
+    VALUES (@id, @popup_id, @impression_id, @type, @page_url, @device, @session_id, @legal_version, @field_id, @element_id, @occurred_at, @received_at, @origin, @ip_hash, @referrer, @country)
   `),
   eventCountForPopup: db.prepare('SELECT COUNT(*) AS n FROM raw_events WHERE popup_id = ?'),
   eventsForPopupSince: db.prepare('SELECT * FROM raw_events WHERE popup_id = ? AND occurred_at >= ? ORDER BY occurred_at ASC'),
@@ -171,6 +181,53 @@ const stmts = {
     WHERE popup_id = ? AND type = 'questionnaire_answer'
     GROUP BY field_id, element_id
     ORDER BY field_id, n DESC
+  `),
+
+  // Site-wide analytics (all popups combined) — "views"/"leads" are exact
+  // event types; "interaction" is any active engagement past just seeing
+  // the popup, which is the one definition that means something across
+  // every template (a banner's only interaction is a click; a
+  // questionnaire's is answering; a form's is starting/submitting it).
+  overviewSummary: db.prepare(`
+    SELECT
+      SUM(CASE WHEN type = 'impression' THEN 1 ELSE 0 END) AS views,
+      SUM(CASE WHEN type = 'form_submit' THEN 1 ELSE 0 END) AS leads,
+      SUM(CASE WHEN type IN ('click','form_start','form_submit','questionnaire_answer','game_result') THEN 1 ELSE 0 END) AS interactions
+    FROM raw_events
+    WHERE occurred_at >= ?
+  `),
+  overviewByReferrer: db.prepare(`
+    SELECT
+      COALESCE(NULLIF(referrer, ''), '(direct)') AS label,
+      SUM(CASE WHEN type = 'impression' THEN 1 ELSE 0 END) AS views,
+      SUM(CASE WHEN type IN ('click','form_start','form_submit','questionnaire_answer','game_result') THEN 1 ELSE 0 END) AS interactions
+    FROM raw_events
+    WHERE occurred_at >= ?
+    GROUP BY label
+    ORDER BY views DESC
+    LIMIT 20
+  `),
+  overviewByPage: db.prepare(`
+    SELECT
+      COALESCE(NULLIF(page_url, ''), '(unknown)') AS label,
+      SUM(CASE WHEN type = 'impression' THEN 1 ELSE 0 END) AS views,
+      SUM(CASE WHEN type IN ('click','form_start','form_submit','questionnaire_answer','game_result') THEN 1 ELSE 0 END) AS interactions
+    FROM raw_events
+    WHERE occurred_at >= ?
+    GROUP BY label
+    ORDER BY views DESC
+    LIMIT 20
+  `),
+  overviewByCountry: db.prepare(`
+    SELECT
+      COALESCE(NULLIF(country, ''), '(unknown)') AS label,
+      SUM(CASE WHEN type = 'impression' THEN 1 ELSE 0 END) AS views,
+      SUM(CASE WHEN type IN ('click','form_start','form_submit','questionnaire_answer','game_result') THEN 1 ELSE 0 END) AS interactions
+    FROM raw_events
+    WHERE occurred_at >= ?
+    GROUP BY label
+    ORDER BY views DESC
+    LIMIT 20
   `)
 };
 
@@ -238,6 +295,14 @@ function eventsForPopupSince(popupId, sinceIso) { return stmts.eventsForPopupSin
 function recentEvents() { return stmts.recentEvents.all(); }
 function questionnaireAnswerCounts(popupId) { return stmts.questionnaireAnswerCounts.all(popupId); }
 
+function overviewSummary(sinceIso) {
+  const row = stmts.overviewSummary.get(sinceIso);
+  return { views: row.views || 0, leads: row.leads || 0, interactions: row.interactions || 0 };
+}
+function overviewByReferrer(sinceIso) { return stmts.overviewByReferrer.all(sinceIso); }
+function overviewByPage(sinceIso) { return stmts.overviewByPage.all(sinceIso); }
+function overviewByCountry(sinceIso) { return stmts.overviewByCountry.all(sinceIso); }
+
 module.exports = {
   listPopups, getByExternalId, upsertPopup, setStatus,
   getIdempotency, saveIdempotency,
@@ -245,5 +310,6 @@ module.exports = {
   logIngestAudit, recentIngestAudit,
   insertEvent, eventCountForPopup, eventsForPopupSince, recentEvents,
   questionnaireAnswerCounts,
+  overviewSummary, overviewByReferrer, overviewByPage, overviewByCountry,
   resetToSeed
 };

@@ -19,6 +19,11 @@ const ingestionRoutes = require('./routes/ingestion');
 
 const PORT = process.env.PORT || 8787;
 const app = express();
+// Railway (and most PaaS hosts) sit the app behind exactly one reverse-proxy
+// hop — without this, req.ip resolves to the proxy's own address for every
+// request, silently breaking both the collector's per-visitor rate limit
+// (lib/collector.js) and its geo-IP country resolution (§14.2).
+app.set('trust proxy', 1);
 app.use(cors());
 // Capture the raw body alongside the parsed one — HMAC verification (§10.4)
 // signs the exact bytes the source system sent, not a re-serialization.

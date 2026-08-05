@@ -80,6 +80,81 @@ function ImpressionsChart({ timeseries }) {
   );
 }
 
+// Region names from a 2-letter ISO code, no extra dependency — every
+// evergreen browser (and Node 18+) ships Intl.DisplayNames.
+const regionNames = typeof Intl !== 'undefined' && Intl.DisplayNames
+  ? new Intl.DisplayNames(['en'], { type: 'region' }) : null;
+function countryLabel(code) {
+  if (!code || code === '(unknown)') return 'Unknown';
+  try { return regionNames ? regionNames.of(code) : code; } catch (e) { return code; }
+}
+
+function BreakdownTable({ title, icon, rows, labelFor }) {
+  return (
+    <div className="card" style={{ boxShadow: 'none' }}>
+      <div className="card-header"><h2>{title}</h2></div>
+      {(!rows || rows.length === 0) ? (
+        <div className="card-pad"><p className="muted small">No data yet for this range.</p></div>
+      ) : (
+        <table>
+          <thead><tr><th></th><th>Views</th><th>Interaction</th><th>Conv. Rate</th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label}>
+                <td className="row" style={{ gap: 8 }}><span aria-hidden="true">{icon}</span>{labelFor ? labelFor(r.label) : r.label}</td>
+                <td className="num">{r.views.toLocaleString()}</td>
+                <td className="num">{r.interactions.toLocaleString()}</td>
+                <td className="num">{(r.conv_rate * 100).toFixed(1)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {rows && rows.length > 0 && <p className="field-hint" style={{ padding: '0 24px 16px' }}>Top {rows.length}{rows.length === 20 ? ' (more exist)' : ''}</p>}
+    </div>
+  );
+}
+
+function Overview() {
+  const [range, setRange] = useState(30);
+  const [data, setData] = useState(null);
+
+  useEffect(() => { api.statsOverview({ range }).then(setData); }, [range]);
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div><h2>Overview</h2><p>Every popup, site-wide — visitor geography, referrers, and pages.</p></div>
+        <div className="pill-toggle">
+          {RANGES.map((r) => (
+            <button key={r} className={range === r ? 'active' : ''} onClick={() => setRange(r)}>{r}d</button>
+          ))}
+        </div>
+      </div>
+
+      {!data && <div className="empty-state">Loading…</div>}
+
+      {data && (
+        <div className="card-pad stack">
+          {data.summary.views === 0 && (
+            <div className="alert alert-info">No events collected yet in this range (§14).</div>
+          )}
+          <div className="stat-grid">
+            <StatCard label="Popup Views" value={data.summary.views.toLocaleString()} />
+            <StatCard label="Leads" value={data.summary.leads.toLocaleString()} sub="form submissions" />
+            <StatCard label="Interaction" value={data.summary.interactions.toLocaleString()} />
+            <StatCard label="Conversion Rate" value={(data.summary.conv_rate * 100).toFixed(1) + '%'} sub="interactions / views" />
+          </div>
+
+          <BreakdownTable title="Geographical Area" icon="🌐" rows={data.countries} labelFor={countryLabel} />
+          <BreakdownTable title="Referrer" icon="🔗" rows={data.referrers} labelFor={(l) => (l === '(direct)' ? 'Direct / no referrer' : l)} />
+          <BreakdownTable title="Pages Users Visit" icon="📄" rows={data.pages} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DeviceBars({ byDevice }) {
   const entries = Object.entries(byDevice);
   const max = Math.max(1, ...entries.map(([, v]) => v));
@@ -113,6 +188,8 @@ export default function Statistics() {
 
   return (
     <div className="stack">
+      <Overview />
+
       <div className="card">
         <div className="card-header">
           <div><h2>Statistics</h2><p>Per-popup metrics by date range and device.</p></div>

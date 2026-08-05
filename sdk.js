@@ -342,6 +342,7 @@
       impression_id: popup._impressionId,
       type: type,
       page_url: location.pathname,   // path only — query strings leak PII
+      referrer: document.referrer,   // collector stores hostname only, same reasoning
       device: deviceClass(),
       session_id: engine.session ? engine.session.id : null,
       legal_version: popup._legalVersion || null,

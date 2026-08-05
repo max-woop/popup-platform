@@ -47,6 +47,7 @@ export const api = {
   urlTester: (payload) => request('/url-tester', { method: 'POST', body: JSON.stringify(payload) }),
 
   stats: (params) => request('/stats?' + new URLSearchParams(params).toString()),
+  statsOverview: (params) => request('/stats/overview?' + new URLSearchParams(params).toString()),
 
   questionnaire: {
     popups: () => request('/questionnaire-popups'),
