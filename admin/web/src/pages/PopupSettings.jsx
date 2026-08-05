@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Fragment } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { StatusBadge } from '../components/StatusBadge.jsx';
@@ -31,6 +31,39 @@ function TriggerIcon({ type }) {
       {TRIGGER_ICON_PATHS[type]}
     </svg>
   );
+}
+
+// Content is a different shape per template (ingestSchemas.js's
+// CONTENT_SCHEMAS) — heading/cta/theme are common, but subheading/shape
+// only exist on modal, position only on banner, questions/completion only
+// on questionnaire, duration_ms/assets/etc only on gamification, and so on.
+// Hardcoding a fixed field list here means it silently stops showing
+// whatever the schema grows next — this renders whatever's actually on
+// the popup instead, so it can't fall out of sync with ingestSchemas.js
+// the way the old fixed list already had (see admin/HOW_TO_SEND_CONTENT.md
+// for what each template can carry).
+const CONTENT_FIELD_LABELS = {
+  heading: 'Heading', subheading: 'Subheading', body: 'Body', theme: 'Theme',
+  show_logo: 'Show logo', shape: 'Shape', position: 'Position',
+  image_url: 'Image', image_alt: 'Image alt text',
+  duration_ms: 'Duration (ms)', volatility_pct: 'Volatility', win_body: 'Win message', lose_body: 'Lose message'
+};
+// Rendered elsewhere on this page (CTA combined below; legal has its own
+// editable card; overrides gets its own summary row) — never duplicated.
+const CONTENT_FIELDS_HANDLED_SEPARATELY = new Set(['heading', 'cta_label', 'cta_url', 'legal', 'overrides']);
+
+function humanizeContentKey(key) {
+  return CONTENT_FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+
+function ContentValue({ value }) {
+  if (value == null || value === '') return '—';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value) && value.every((v) => typeof v !== 'object')) return value.join(', ');
+  if (typeof value === 'object') {
+    return <pre className="mono small" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{JSON.stringify(value, null, 2)}</pre>;
+  }
+  return String(value);
 }
 
 function toLocalInput(iso) {
@@ -263,12 +296,28 @@ export default function PopupSettings() {
             <div className="card-pad">
               <dl className="kv">
                 <dt>Heading</dt><dd>{popup.content.heading}</dd>
-                {popup.content.body && <><dt>Body</dt><dd>{popup.content.body}</dd></>}
                 {popup.content.cta_label && <><dt>CTA</dt><dd>{popup.content.cta_label} → {popup.content.cta_url}</dd></>}
-                {popup.content.image_url && <><dt>Image</dt><dd className="mono small">{popup.content.image_url}</dd></>}
-                <dt>Theme</dt><dd>{popup.content.theme}</dd>
-                {popup.content.overrides && (
-                  <><dt>Overrides</dt><dd className="mono small">{Object.keys(popup.content.overrides).join(', ')}</dd></>
+
+                {Object.keys(popup.content)
+                  .filter((k) => !CONTENT_FIELDS_HANDLED_SEPARATELY.has(k) && popup.content[k] != null && popup.content[k] !== '')
+                  .map((k) => (
+                    <Fragment key={k}>
+                      <dt>{humanizeContentKey(k)}</dt>
+                      <dd className={typeof popup.content[k] === 'object' ? 'mono small' : undefined}>
+                        <ContentValue value={popup.content[k]} />
+                      </dd>
+                    </Fragment>
+                  ))}
+
+                {popup.content.overrides && Object.keys(popup.content.overrides).length > 0 && (
+                  <>
+                    <dt>Overrides</dt>
+                    <dd className="mono small">
+                      {Object.entries(popup.content.overrides).map(([device, ov]) => (
+                        <div key={device}>{device}: {Object.keys(ov).join(', ') || '(empty)'}</div>
+                      ))}
+                    </dd>
+                  </>
                 )}
               </dl>
             </div>
