@@ -152,6 +152,13 @@ again:
   fine and the JSON is valid — it's just stale. This exact bug shipped
   once and took a while to trace because the symptom (legal fail-safe
   suppression) looked like a data problem, not a routing one.
+- **Express needs `app.set('trust proxy', 1)` behind Railway.** Without
+  it, `req.ip` resolves to Railway's own proxy address for every request,
+  not the visitor's — silently breaking the collector's per-visitor rate
+  limit and (once added) geo-IP country resolution. Set to trust exactly
+  one hop, matching Railway's actual proxy topology — not `true` (trust
+  every hop unconditionally), which is more permissive than the real
+  topology needs.
 
 **Persistence:** SQLite (`admin/server/data/`) lives on the container's
 ephemeral disk by default — a redeploy wipes it back to `seed.json`
@@ -191,6 +198,16 @@ defaults to local dev origins only.
   ingestion API's own `GET /v1/popups/:id/stats` — what the source system
   itself calls back — went through the same fix; it had the identical
   synthetic-data problem, just unlabeled.
+- **Statistics has a site-wide Overview** (`GET /api/stats/overview`,
+  distinct from the existing per-popup `/stats`) — visitor geography,
+  referrer, and pages-visited breakdowns across every popup combined, plus
+  summary tiles (views/leads/interactions/conversion rate). Needed two
+  fields nothing captured before: `referrer` (sdk.js now sends
+  `document.referrer`, reduced to hostname only before storage — same
+  query-string-strips-PII reasoning already applied to `page_url`) and
+  `country`, resolved server-side from the request IP via `geoip-lite`
+  and never trusted from the client. Country codes render as real names
+  via `Intl.DisplayNames` — no dependency, built into Node 18+.
 - **Popups list has a live preview per row** — a "Preview" toggle expands
   each row to render that popup through the real SDK's `renderInline()`
   (`admin/web/src/lib/sdkLoader.js` loads `sdk.js`/`tokens.css` into the
