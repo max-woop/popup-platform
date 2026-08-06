@@ -1,6 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { Pane, Text, Select, Alert, Table } from 'evergreen-ui';
 import { api } from '../lib/api';
+import { Card } from '../components/Card.jsx';
+import { PillToggle } from '../components/PillToggle.jsx';
 
+const ACCENT = '#FF4C0B';
 const RANGES = [7, 30, 90];
 const DEVICES = ['all', 'desktop', 'tablet', 'mobile'];
 const CHART_W = 600;
@@ -9,11 +13,11 @@ const CHART_PAD_TOP = 12;
 
 function StatCard({ label, value, sub }) {
   return (
-    <div className="stat-card">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
-      {sub && <div className="stat-sub">{sub}</div>}
-    </div>
+    <Pane padding="16px 20px" border="1px solid #E7E2DF" borderRadius={14} background="white">
+      <Text size={300} fontWeight={600} color="muted" display="block">{label}</Text>
+      <Text fontSize={26} fontWeight={700} letterSpacing="-.01em" display="block" marginTop={4}>{value}</Text>
+      {sub && <Text size={300} color="muted" display="block" marginTop={2}>{sub}</Text>}
+    </Pane>
   );
 }
 
@@ -23,7 +27,9 @@ function formatShortDate(iso) {
 
 /* Real inline line chart over stat.timeseries — the only metric the API
    returns a full daily series for, so this is the one chart backed by real
-   per-day numbers rather than a single aggregate. */
+   per-day numbers rather than a single aggregate. No Evergreen equivalent
+   (the library ships no charting component), so this stays hand-built SVG,
+   just re-themed to plain hex instead of the old CSS custom properties. */
 function ImpressionsChart({ timeseries }) {
   const wrapRef = useRef(null);
   const [hover, setHover] = useState(null);
@@ -53,30 +59,33 @@ function ImpressionsChart({ timeseries }) {
   const hoverPoint = hover != null ? points[hover] : null;
 
   return (
-    <div className="line-chart" ref={wrapRef} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none">
-        <path d={areaPath} fill="color-mix(in srgb, var(--accent) 14%, transparent)" stroke="none" />
-        <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+    <Pane position="relative" ref={wrapRef} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" style={{ display: 'block', width: '100%', height: 160, overflow: 'visible' }}>
+        <path d={areaPath} fill="rgba(255,76,11,0.14)" stroke="none" />
+        <path d={linePath} fill="none" stroke={ACCENT} strokeWidth="2" vectorEffect="non-scaling-stroke" />
         {hoverPoint && (
           <>
-            <line x1={hoverPoint[0]} y1="0" x2={hoverPoint[0]} y2={CHART_H} stroke="var(--border)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-            <circle cx={hoverPoint[0]} cy={hoverPoint[1]} r="4" fill="var(--accent)" stroke="var(--bg-surface)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+            <line x1={hoverPoint[0]} y1="0" x2={hoverPoint[0]} y2={CHART_H} stroke="#E7E2DF" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+            <circle cx={hoverPoint[0]} cy={hoverPoint[1]} r="4" fill={ACCENT} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke" />
           </>
         )}
       </svg>
       {hover != null && (
-        <div className="line-chart-tooltip" style={{ left: (points[hover][0] / CHART_W) * 100 + '%' }}>
-          <div className="lct-date">{formatShortDate(timeseries[hover].date)}</div>
-          <div>{timeseries[hover].impressions.toLocaleString()} impressions</div>
-        </div>
+        <Pane position="absolute" top={0} left={(points[hover][0] / CHART_W) * 100 + '%'}
+          transform="translate(-50%, -100%)" marginTop={-8}
+          background="#0A0A0A" color="white" paddingX={10} paddingY={6} borderRadius={4}
+          fontSize={11.5} whiteSpace="nowrap" pointerEvents="none">
+          <Text size={300} color="rgba(255,255,255,0.6)" display="block">{formatShortDate(timeseries[hover].date)}</Text>
+          <Text size={300} color="white">{timeseries[hover].impressions.toLocaleString()} impressions</Text>
+        </Pane>
       )}
       {n > 0 && (
-        <div className="line-chart-axis">
-          <span>{formatShortDate(timeseries[0].date)}</span>
-          <span>{formatShortDate(timeseries[n - 1].date)}</span>
-        </div>
+        <Pane display="flex" justifyContent="space-between" marginTop={6}>
+          <Text size={300} color="muted">{formatShortDate(timeseries[0].date)}</Text>
+          <Text size={300} color="muted">{formatShortDate(timeseries[n - 1].date)}</Text>
+        </Pane>
       )}
-    </div>
+    </Pane>
   );
 }
 
@@ -91,27 +100,39 @@ function countryLabel(code) {
 
 function BreakdownTable({ title, icon, rows, labelFor }) {
   return (
-    <div className="card" style={{ boxShadow: 'none' }}>
-      <div className="card-header"><h2>{title}</h2></div>
+    <Card title={title} bodyPadding={0}>
       {(!rows || rows.length === 0) ? (
-        <div className="card-pad"><p className="muted small">No data yet for this range.</p></div>
+        <Pane padding={20}><Text size={300} color="muted">No data yet for this range.</Text></Pane>
       ) : (
-        <table>
-          <thead><tr><th></th><th>Views</th><th>Interaction</th><th>Conv. Rate</th></tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.label}>
-                <td className="row" style={{ gap: 8 }}><span aria-hidden="true">{icon}</span>{labelFor ? labelFor(r.label) : r.label}</td>
-                <td className="num">{r.views.toLocaleString()}</td>
-                <td className="num">{r.interactions.toLocaleString()}</td>
-                <td className="num">{(r.conv_rate * 100).toFixed(1)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <>
+          <Table>
+            <Table.Head>
+              <Table.TextHeaderCell> </Table.TextHeaderCell>
+              <Table.TextHeaderCell>Views</Table.TextHeaderCell>
+              <Table.TextHeaderCell>Interaction</Table.TextHeaderCell>
+              <Table.TextHeaderCell>Conv. Rate</Table.TextHeaderCell>
+            </Table.Head>
+            <Table.Body>
+              {rows.map((r) => (
+                <Table.Row key={r.label}>
+                  <Table.TextCell>
+                    <Pane display="flex" alignItems="center" gap={8}>
+                      <span aria-hidden="true">{icon}</span>{labelFor ? labelFor(r.label) : r.label}
+                    </Pane>
+                  </Table.TextCell>
+                  <Table.TextCell>{r.views.toLocaleString()}</Table.TextCell>
+                  <Table.TextCell>{r.interactions.toLocaleString()}</Table.TextCell>
+                  <Table.TextCell>{(r.conv_rate * 100).toFixed(1)}%</Table.TextCell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table>
+          <Text size={300} color="muted" display="block" padding={16}>
+            Top {rows.length}{rows.length === 20 ? ' (more exist)' : ''}
+          </Text>
+        </>
       )}
-      {rows && rows.length > 0 && <p className="field-hint" style={{ padding: '0 24px 16px' }}>Top {rows.length}{rows.length === 20 ? ' (more exist)' : ''}</p>}
-    </div>
+    </Card>
   );
 }
 
@@ -122,36 +143,28 @@ function Overview() {
   useEffect(() => { api.statsOverview({ range }).then(setData); }, [range]);
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <div><h2>Overview</h2><p>Every popup, site-wide — visitor geography, referrers, and pages.</p></div>
-        <div className="pill-toggle">
-          {RANGES.map((r) => (
-            <button key={r} className={range === r ? 'active' : ''} onClick={() => setRange(r)}>{r}d</button>
-          ))}
-        </div>
-      </div>
-
-      {!data && <div className="empty-state">Loading…</div>}
+    <Card title="Overview" subtitle="Every popup, site-wide — visitor geography, referrers, and pages."
+      right={<PillToggle options={RANGES} value={range} onChange={setRange} labelFor={(r) => r + 'd'} />}>
+      {!data && <Text color="muted">Loading…</Text>}
 
       {data && (
-        <div className="card-pad stack">
+        <Pane display="flex" flexDirection="column" gap={16}>
           {data.summary.views === 0 && (
-            <div className="alert alert-info">No events collected yet in this range (§14).</div>
+            <Alert intent="none">No events collected yet in this range (§14).</Alert>
           )}
-          <div className="stat-grid">
+          <Pane display="grid" gridTemplateColumns="repeat(4, 1fr)" gap={16}>
             <StatCard label="Popup Views" value={data.summary.views.toLocaleString()} />
             <StatCard label="Leads" value={data.summary.leads.toLocaleString()} sub="form submissions" />
             <StatCard label="Interaction" value={data.summary.interactions.toLocaleString()} />
             <StatCard label="Conversion Rate" value={(data.summary.conv_rate * 100).toFixed(1) + '%'} sub="interactions / views" />
-          </div>
+          </Pane>
 
           <BreakdownTable title="Geographical Area" icon="🌐" rows={data.countries} labelFor={countryLabel} />
           <BreakdownTable title="Referrer" icon="🔗" rows={data.referrers} labelFor={(l) => (l === '(direct)' ? 'Direct / no referrer' : l)} />
           <BreakdownTable title="Pages Users Visit" icon="📄" rows={data.pages} />
-        </div>
+        </Pane>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -159,15 +172,17 @@ function DeviceBars({ byDevice }) {
   const entries = Object.entries(byDevice);
   const max = Math.max(1, ...entries.map(([, v]) => v));
   return (
-    <div>
+    <Pane display="flex" flexDirection="column" gap={8}>
       {entries.map(([device, v]) => (
-        <div className="table-bar-row" key={device}>
-          <div className="table-bar-label">{device}</div>
-          <div className="table-bar-track"><div className="table-bar-fill" style={{ width: (v / max) * 100 + '%' }} /></div>
-          <div className="table-bar-value">{v.toLocaleString()}</div>
-        </div>
+        <Pane display="flex" alignItems="center" gap={10} key={device}>
+          <Text size={300} width={84} flexShrink={0} textTransform="capitalize">{device}</Text>
+          <Pane flex={1} height={8} borderRadius={999} background="#F1EEEC" overflow="hidden">
+            <Pane height="100%" borderRadius={999} background={ACCENT} width={(v / max) * 100 + '%'} />
+          </Pane>
+          <Text size={300} width={56} flexShrink={0} textAlign="right" color="muted">{v.toLocaleString()}</Text>
+        </Pane>
       ))}
-    </div>
+    </Pane>
   );
 }
 
@@ -187,67 +202,57 @@ export default function Statistics() {
   useEffect(load, [load]);
 
   return (
-    <div className="stack">
+    <Pane display="flex" flexDirection="column" gap={16}>
       <Overview />
 
-      <div className="card">
-        <div className="card-header">
-          <div><h2>Statistics</h2><p>Per-popup metrics by date range and device.</p></div>
-          <div className="row">
-            <select value={popupId} onChange={(e) => setPopupId(e.target.value)} style={{ minWidth: 200 }}>
+      <Card title="Statistics" subtitle="Per-popup metrics by date range and device."
+        right={
+          <Pane display="flex" alignItems="center" gap={10}>
+            <Select value={popupId} onChange={(e) => setPopupId(e.target.value)} width={200}>
               {popups.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <div className="pill-toggle">
-              {RANGES.map((r) => (
-                <button key={r} className={range === r ? 'active' : ''} onClick={() => setRange(r)}>{r}d</button>
-              ))}
-            </div>
-            <select value={device} onChange={(e) => setDevice(e.target.value)}>
+            </Select>
+            <PillToggle options={RANGES} value={range} onChange={setRange} labelFor={(r) => r + 'd'} />
+            <Select value={device} onChange={(e) => setDevice(e.target.value)} width={110}>
               {DEVICES.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {!stat && <div className="empty-state">Loading…</div>}
+            </Select>
+          </Pane>
+        }>
+        {!stat && <Text color="muted">Loading…</Text>}
 
         {stat && (
-          <div className="card-pad stack">
+          <Pane display="flex" flexDirection="column" gap={16}>
             {stat.summary.impressions === 0 ? (
-              <div className="alert alert-info">No events collected yet for this popup (§14) — numbers below will update once real traffic comes in.</div>
+              <Alert intent="none">No events collected yet for this popup (§14) — numbers below will update once real traffic comes in.</Alert>
             ) : (
-              <div className="alert alert-info">Live data from collected events (§14).</div>
+              <Alert intent="none">Live data from collected events (§14).</Alert>
             )}
-            <div className="stat-grid">
+            <Pane display="grid" gridTemplateColumns="repeat(4, 1fr)" gap={16}>
               <StatCard label="Impressions" value={stat.summary.impressions.toLocaleString()} />
               <StatCard label="Views (≥50% / 1s)" value={stat.summary.views.toLocaleString()} />
               <StatCard label="Clicks" value={stat.summary.clicks.toLocaleString()} sub={'CTR ' + (stat.summary.ctr * 100).toFixed(1) + '%'} />
               <StatCard label="Closes" value={stat.summary.closes.toLocaleString()} sub={'close rate ' + (stat.summary.close_rate * 100).toFixed(1) + '%'} />
-            </div>
+            </Pane>
 
             {stat.summary.form_conversion != null && (
-              <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              <Pane display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={16}>
                 <StatCard label="Form starts" value={stat.summary.form_starts.toLocaleString()} />
                 <StatCard label="Form submits" value={stat.summary.form_submits.toLocaleString()} />
                 <StatCard label="Form conversion" value={(stat.summary.form_conversion * 100).toFixed(1) + '%'} />
-              </div>
+              </Pane>
             )}
 
-            <div className="card" style={{ boxShadow: 'none' }}>
-              <div className="card-pad">
-                <div className="small muted" style={{ marginBottom: 8 }}>Impressions over time</div>
-                <ImpressionsChart timeseries={stat.timeseries} />
-              </div>
-            </div>
+            <Pane border="1px solid #E7E2DF" borderRadius={14} padding={16}>
+              <Text size={300} color="muted" display="block" marginBottom={8}>Impressions over time</Text>
+              <ImpressionsChart timeseries={stat.timeseries} />
+            </Pane>
 
-            <div className="card" style={{ boxShadow: 'none' }}>
-              <div className="card-pad">
-                <div className="small muted" style={{ marginBottom: 12 }}>By device</div>
-                <DeviceBars byDevice={stat.by_device} />
-              </div>
-            </div>
-          </div>
+            <Pane border="1px solid #E7E2DF" borderRadius={14} padding={16}>
+              <Text size={300} color="muted" display="block" marginBottom={12}>By device</Text>
+              <DeviceBars byDevice={stat.by_device} />
+            </Pane>
+          </Pane>
         )}
-      </div>
-    </div>
+      </Card>
+    </Pane>
   );
 }

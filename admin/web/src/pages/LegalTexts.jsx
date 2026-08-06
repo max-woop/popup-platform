@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Pane, Text, TextInput, Textarea, Checkbox, Button, Alert, Badge, Table } from 'evergreen-ui';
 import { api } from '../lib/api';
 import { useRole } from '../lib/RoleContext.jsx';
 import { EntitySelect } from '../components/EntitySelect.jsx';
+import { Card } from '../components/Card.jsx';
 
 function toLocalInput(iso) { return iso ? new Date(iso).toISOString().slice(0, 16) : ''; }
 
@@ -33,41 +35,39 @@ function PublishForm({ onPublished }) {
   }
 
   return (
-    <form className="card" onSubmit={submit}>
-      <div className="card-header"><div><h2>Publish new version</h2><p>Compliance only. Replaces the current wording going forward.</p></div></div>
-      <div className="card-pad stack">
-        <div className="field-row">
-          <div className="field">
-            <label>Broker entity</label>
-            <EntitySelect value={entity} onChange={(e) => setEntity(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>Country (blank = entity default)</label>
-            <input type="text" placeholder="e.g. DE" value={country} onChange={(e) => setCountry(e.target.value)} />
-          </div>
-        </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Locale</label>
-            <input type="text" value={locale} onChange={(e) => setLocale(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>Effective from</label>
-            <input type="datetime-local" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
-          </div>
-        </div>
-        <div className="checkbox-row">
-          <input type="checkbox" id="required" checked={required} onChange={(e) => setRequired(e.target.checked)} />
-          <label htmlFor="required" style={{ fontWeight: 400 }}>Jurisdiction requires a warning</label>
-        </div>
-        <div className="field">
-          <label>Warning text</label>
-          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. 83% of retail CFD accounts lose money" required />
-        </div>
-        {error && <div className="alert alert-danger">{error}</div>}
-        <div><button className="btn btn-accent" disabled={busy}>{busy ? 'Publishing…' : 'Publish version'}</button></div>
-      </div>
-    </form>
+    <Pane is="form" onSubmit={submit}>
+      <Card title="Publish new version" subtitle="Compliance only. Replaces the current wording going forward.">
+        <Pane display="flex" flexDirection="column" gap={14}>
+          <Pane display="flex" gap={16} flexWrap="wrap">
+            <Pane>
+              <Text size={300} display="block" marginBottom={4}>Broker entity</Text>
+              <EntitySelect value={entity} onChange={(e) => setEntity(e.target.value)} />
+            </Pane>
+            <Pane>
+              <Text size={300} display="block" marginBottom={4}>Country (blank = entity default)</Text>
+              <TextInput placeholder="e.g. DE" value={country} onChange={(e) => setCountry(e.target.value)} />
+            </Pane>
+          </Pane>
+          <Pane display="flex" gap={16} flexWrap="wrap">
+            <Pane>
+              <Text size={300} display="block" marginBottom={4}>Locale</Text>
+              <TextInput value={locale} onChange={(e) => setLocale(e.target.value)} />
+            </Pane>
+            <Pane>
+              <Text size={300} display="block" marginBottom={4}>Effective from</Text>
+              <TextInput type="datetime-local" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+            </Pane>
+          </Pane>
+          <Checkbox checked={required} onChange={(e) => setRequired(e.target.checked)} label="Jurisdiction requires a warning" />
+          <Pane>
+            <Text size={300} display="block" marginBottom={4}>Warning text</Text>
+            <Textarea width="100%" value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. 83% of retail CFD accounts lose money" required />
+          </Pane>
+          {error && <Alert intent="danger">{error}</Alert>}
+          <Pane><Button appearance="primary" disabled={busy}>{busy ? 'Publishing…' : 'Publish version'}</Button></Pane>
+        </Pane>
+      </Card>
+    </Pane>
   );
 }
 
@@ -92,18 +92,18 @@ function AddDomainForm({ onSaved }) {
   }
 
   return (
-    <form className="field-row" onSubmit={submit} style={{ alignItems: 'flex-end', marginTop: 12 }}>
-      <div className="field">
-        <label>Domain</label>
-        <input type="text" placeholder="e.g. staging.libertex.com" value={host} onChange={(e) => setHost(e.target.value)} required />
-      </div>
-      <div className="field">
-        <label>Entity</label>
+    <Pane is="form" onSubmit={submit} display="flex" gap={16} alignItems="flex-end" flexWrap="wrap" marginTop={12}>
+      <Pane>
+        <Text size={300} display="block" marginBottom={4}>Domain</Text>
+        <TextInput placeholder="e.g. staging.libertex.com" value={host} onChange={(e) => setHost(e.target.value)} required />
+      </Pane>
+      <Pane>
+        <Text size={300} display="block" marginBottom={4}>Entity</Text>
         <EntitySelect value={entity} onChange={(e) => setEntity(e.target.value)} />
-      </div>
-      <div><button className="btn" disabled={busy}>{busy ? 'Saving…' : 'Add mapping'}</button></div>
-      {error && <div className="alert alert-danger">{error}</div>}
-    </form>
+      </Pane>
+      <Button disabled={busy}>{busy ? 'Saving…' : 'Add mapping'}</Button>
+      {error && <Alert intent="danger">{error}</Alert>}
+    </Pane>
   );
 }
 
@@ -115,56 +115,75 @@ export default function LegalTexts() {
   const load = useCallback(() => { api.legalTexts.get().then(setData); }, []);
   useEffect(load, [load]);
 
-  if (!data) return <div className="empty-state">Loading…</div>;
+  if (!data) return <Text color="muted">Loading…</Text>;
 
   return (
-    <div className="stack">
-      <div className="card">
-        <div className="card-header"><div><h2>Domain → entity map</h2><p>Exact hostname match — no subdomain guessing.</p></div></div>
-        <table>
-          <thead><tr><th>Domain</th><th>Entity</th></tr></thead>
-          <tbody>
+    <Pane display="flex" flexDirection="column" gap={16}>
+      <Card title="Domain → entity map" subtitle="Exact hostname match — no subdomain guessing.">
+        <Table>
+          <Table.Head>
+            <Table.TextHeaderCell>Domain</Table.TextHeaderCell>
+            <Table.TextHeaderCell>Entity</Table.TextHeaderCell>
+          </Table.Head>
+          <Table.Body>
             {Object.entries(data.domains).map(([host, entity]) => (
-              <tr key={host}><td className="mono small">{host}</td><td>{entity}</td></tr>
+              <Table.Row key={host}>
+                <Table.TextCell><Text fontFamily="mono" size={300}>{host}</Text></Table.TextCell>
+                <Table.TextCell>{entity}</Table.TextCell>
+              </Table.Row>
             ))}
-          </tbody>
-        </table>
+          </Table.Body>
+        </Table>
         {isCompliance ? (
           <AddDomainForm onSaved={load} />
         ) : (
-          <div className="alert alert-info" style={{ marginTop: 12 }}>Read-only for your current role. Switch to Compliance to add a mapping.</div>
+          <Alert intent="none" marginTop={12}>Read-only for your current role. Switch to Compliance to add a mapping.</Alert>
         )}
-      </div>
+      </Card>
 
       {Object.keys(data.history).map((entity) => (
-        <div className="card" key={entity}>
-          <div className="card-header"><h2>{entity.toUpperCase()} — version history</h2></div>
-          <table>
-            <thead><tr><th>v</th><th>Country</th><th>Required</th><th>Text</th><th>Effective</th><th>Approved by</th></tr></thead>
-            <tbody>
+        <Card title={entity.toUpperCase() + ' — version history'} key={entity} bodyPadding={0}>
+          <Table>
+            <Table.Head>
+              <Table.TextHeaderCell flexBasis={120} flexGrow={0}>v</Table.TextHeaderCell>
+              <Table.TextHeaderCell flexBasis={90} flexGrow={0}>Country</Table.TextHeaderCell>
+              <Table.TextHeaderCell flexBasis={80} flexGrow={0}>Required</Table.TextHeaderCell>
+              <Table.TextHeaderCell>Text</Table.TextHeaderCell>
+              <Table.TextHeaderCell flexBasis={220} flexGrow={0}>Effective</Table.TextHeaderCell>
+              <Table.TextHeaderCell flexBasis={140} flexGrow={0}>Approved by</Table.TextHeaderCell>
+            </Table.Head>
+            <Table.Body>
               {data.history[entity].map((row) => {
                 const isCurrent = !row.effective_to;
                 return (
-                  <tr key={row.id} style={isCurrent ? { background: 'var(--bg-sunken)' } : undefined}>
-                    <td>{row.version}{isCurrent && <span className="badge badge-live" style={{ marginLeft: 6 }}>current</span>}</td>
-                    <td className="small muted">{row.country || 'default'}</td>
-                    <td className="small">{row.required ? 'yes' : 'no'}</td>
-                    <td className="small" style={{ maxWidth: 320 }}>{row.text}</td>
-                    <td className="small muted">{new Date(row.effective_from).toLocaleDateString()} → {row.effective_to ? new Date(row.effective_to).toLocaleDateString() : '—'}</td>
-                    <td className="small muted">{row.approved_by}</td>
-                  </tr>
+                  <Table.Row key={row.id} background={isCurrent ? '#F1EEEC' : undefined}>
+                    <Table.TextCell flexBasis={120} flexGrow={0}>
+                      <Pane display="flex" alignItems="center" gap={6}>
+                        <Text size={300}>{row.version}</Text>{isCurrent && <Badge color="green">current</Badge>}
+                      </Pane>
+                    </Table.TextCell>
+                    <Table.TextCell flexBasis={90} flexGrow={0}><Text size={300} color="muted">{row.country || 'default'}</Text></Table.TextCell>
+                    <Table.TextCell flexBasis={80} flexGrow={0}>{row.required ? 'yes' : 'no'}</Table.TextCell>
+                    <Table.TextCell><Text size={300}>{row.text}</Text></Table.TextCell>
+                    <Table.TextCell flexBasis={220} flexGrow={0}>
+                      <Text size={300} color="muted">
+                        {new Date(row.effective_from).toLocaleDateString()} → {row.effective_to ? new Date(row.effective_to).toLocaleDateString() : '—'}
+                      </Text>
+                    </Table.TextCell>
+                    <Table.TextCell flexBasis={140} flexGrow={0}><Text size={300} color="muted">{row.approved_by}</Text></Table.TextCell>
+                  </Table.Row>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </Table.Body>
+          </Table>
+        </Card>
       ))}
 
       {isCompliance ? (
         <PublishForm onPublished={load} />
       ) : (
-        <div className="alert alert-info">Read-only for your current role. Switch to Compliance to publish a new version.</div>
+        <Alert intent="none">Read-only for your current role. Switch to Compliance to publish a new version.</Alert>
       )}
-    </div>
+    </Pane>
   );
 }

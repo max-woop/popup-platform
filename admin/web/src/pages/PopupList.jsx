@@ -1,7 +1,11 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  Pane, Text, TextInput, Select, Button, Alert, Table
+} from 'evergreen-ui';
 import { api } from '../lib/api';
 import { StatusBadge } from '../components/StatusBadge.jsx';
+import { Card } from '../components/Card.jsx';
 import { useRole } from '../lib/RoleContext.jsx';
 import { loadSdk } from '../lib/sdkLoader';
 
@@ -42,10 +46,10 @@ function PopupPreview({ popupId }) {
   }, [popupId]);
 
   return (
-    <div className="card-pad" style={{ background: 'var(--bg-sunken)' }}>
-      {error && <div className="alert alert-danger">Preview failed: {error}</div>}
+    <Pane padding={16} background="tint1">
+      {error && <Alert intent="danger" marginBottom={12}>Preview failed: {error}</Alert>}
       <div ref={containerRef} />
-    </div>
+    </Pane>
   );
 }
 
@@ -96,91 +100,75 @@ export default function PopupList() {
   }
 
   return (
-    <div className="stack">
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h2>Popups</h2>
-            <p>Content comes from the source system — this list is targeting, schedule, and the off switch.</p>
-          </div>
-        </div>
+    <Card title="Popups" subtitle="Content comes from the source system — this list is targeting, schedule, and the off switch." bodyPadding={0}>
+      {popups && popups.length > 0 && (
+        <Pane display="flex" gap={12} paddingX={20} paddingBottom={16}>
+          <TextInput
+            placeholder="Search by name or template…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            flex={1}
+          />
+          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} width={170}>
+            {STATUS_FILTERS.map((s) => <option key={s} value={s}>{s === 'all' ? 'All statuses' : s}</option>)}
+          </Select>
+        </Pane>
+      )}
 
-        {popups && popups.length > 0 && (
-          <div className="search-row" style={{ padding: '0 24px 16px' }}>
-            <input
-              className="search-input"
-              type="text"
-              placeholder="Search by name or template…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              {STATUS_FILTERS.map((s) => <option key={s} value={s}>{s === 'all' ? 'All statuses' : s}</option>)}
-            </select>
-          </div>
-        )}
+      {error && <Alert intent="danger" marginX={20} marginBottom={16}>{error}</Alert>}
+      {!popups && !error && <Pane padding={40} textAlign="center"><Text color="muted">Loading…</Text></Pane>}
+      {popups && popups.length > 0 && filtered.length === 0 && (
+        <Pane padding={40} textAlign="center"><Text color="muted">No popups match your search.</Text></Pane>
+      )}
 
-        {error && <div className="alert alert-danger" style={{ margin: 16 }}>{error}</div>}
-        {!popups && !error && <div className="empty-state">Loading…</div>}
-        {popups && popups.length > 0 && filtered.length === 0 && (
-          <div className="empty-state">No popups match your search.</div>
-        )}
-
-        {popups && filtered.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th><th>Template</th><th>Status</th><th>Schedule</th>
-                <th>Trigger</th><th>Priority</th><th>Legal</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => (
-                <Fragment key={p.id}>
-                  <tr>
-                    <td><Link to={'/popups/' + p.id}>{p.name}</Link></td>
-                    <td className="mono small">{p.template}</td>
-                    <td><StatusBadge status={p.status} /></td>
-                    <td className="small">{formatSchedule(p)}</td>
-                    <td className="small">{triggerLabel(p.trigger)}</td>
-                    <td className="num">{p.priority}</td>
-                    <td className="small">{p.legal_mode}</td>
-                    <td>
-                      <div className="row">
-                        <button className="btn btn-sm" onClick={() => togglePreview(p.id)}>
-                          {expanded.has(p.id) ? 'Hide preview' : 'Preview'}
-                        </button>
-                        <Link className="btn btn-sm" to={'/popups/' + p.id}>Settings</Link>
-                        {canOperate && p.status !== 'archived' && (
-                          <button
-                            className="btn btn-sm"
-                            disabled={busyId === p.id}
-                            onClick={() => togglePause(p.id)}
-                          >
-                            {p.status === 'live' ? 'Pause' : 'Resume'}
-                          </button>
-                        )}
-                        {canOperate && p.status !== 'archived' && (
-                          <button className="btn btn-sm btn-danger" disabled={busyId === p.id} onClick={() => archive(p.id)}>
-                            Archive
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  {expanded.has(p.id) && (
-                    <tr>
-                      <td colSpan={8} style={{ padding: 0 }}>
-                        <PopupPreview popupId={p.id} />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
+      {popups && filtered.length > 0 && (
+        <Table>
+          <Table.Head>
+            <Table.TextHeaderCell>Name</Table.TextHeaderCell>
+            <Table.TextHeaderCell>Template</Table.TextHeaderCell>
+            <Table.TextHeaderCell>Status</Table.TextHeaderCell>
+            <Table.TextHeaderCell>Schedule</Table.TextHeaderCell>
+            <Table.TextHeaderCell>Trigger</Table.TextHeaderCell>
+            <Table.TextHeaderCell maxWidth={80}>Priority</Table.TextHeaderCell>
+            <Table.TextHeaderCell>Legal</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={280} flexShrink={0} flexGrow={0}> </Table.TextHeaderCell>
+          </Table.Head>
+          <Table.Body>
+            {filtered.map((p) => (
+              <Fragment key={p.id}>
+                <Table.Row>
+                  <Table.TextCell><Link to={'/popups/' + p.id}>{p.name}</Link></Table.TextCell>
+                  <Table.TextCell><Text fontFamily="mono" size={300}>{p.template}</Text></Table.TextCell>
+                  <Table.Cell><StatusBadge status={p.status} /></Table.Cell>
+                  <Table.TextCell>{formatSchedule(p)}</Table.TextCell>
+                  <Table.TextCell>{triggerLabel(p.trigger)}</Table.TextCell>
+                  <Table.TextCell maxWidth={80}>{p.priority}</Table.TextCell>
+                  <Table.TextCell>{p.legal_mode}</Table.TextCell>
+                  <Table.Cell flexBasis={280} flexShrink={0} flexGrow={0}>
+                    <Pane display="flex" gap={6} flexWrap="wrap">
+                      <Button size="small" onClick={() => togglePreview(p.id)}>
+                        {expanded.has(p.id) ? 'Hide preview' : 'Preview'}
+                      </Button>
+                      <Button is={Link} to={'/popups/' + p.id} size="small">Settings</Button>
+                      {canOperate && p.status !== 'archived' && (
+                        <Button size="small" disabled={busyId === p.id} onClick={() => togglePause(p.id)}>
+                          {p.status === 'live' ? 'Pause' : 'Resume'}
+                        </Button>
+                      )}
+                      {canOperate && p.status !== 'archived' && (
+                        <Button size="small" intent="danger" disabled={busyId === p.id} onClick={() => archive(p.id)}>
+                          Archive
+                        </Button>
+                      )}
+                    </Pane>
+                  </Table.Cell>
+                </Table.Row>
+                {expanded.has(p.id) && <PopupPreview popupId={p.id} />}
+              </Fragment>
+            ))}
+          </Table.Body>
+        </Table>
+      )}
+    </Card>
   );
 }

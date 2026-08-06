@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Pane, Text, TextInput, Button, Alert, Table } from 'evergreen-ui';
 import { api } from '../lib/api';
 import { useRole } from '../lib/RoleContext.jsx';
+import { Card } from '../components/Card.jsx';
 
 // Vite's dev server (:5173) only proxies /api (see admin/web/vite.config.js)
 // — /dist and /v1 are only reachable on admin/server itself, :8787 locally.
@@ -53,30 +55,28 @@ function InstallCard() {
   }
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <div><h2>Website installation</h2><p>Paste once, before <code>&lt;/body&gt;</code>, on any page that should show popups.</p></div>
-        <button className="btn btn-primary" onClick={copy}>{copied ? 'Copied!' : 'Copy code'}</button>
-      </div>
-      <div className="card-pad">
-        <pre className="mono small" style={{ margin: 0, whiteSpace: 'pre-wrap', overflowX: 'auto' }}>{snippet}</pre>
-        <div className="alert alert-warn" style={{ marginTop: 12 }}>
-          <strong>One extra step for a real site:</strong> the popups will render fine, but
-          every event (impressions, clicks, leads — everything Statistics shows) gets silently
-          rejected until that site's origin is added to <code>COLLECTOR_ALLOWED_ORIGINS</code>.
-          Popups working but Statistics staying empty is the symptom. This is an environment
-          variable on the server, not something set from this screen.
-        </div>
-        <p className="field-hint" style={{ marginTop: 12 }}>
-          Loads the real SDK from this deployment (<code>{SDK_ORIGIN}</code>). Which popups
-          show, to whom, and when is controlled entirely from <strong>Popups</strong> and{' '}
-          <strong>Targeting</strong> — nothing about that is in this snippet, so it never needs
-          to be re-pasted when content or targeting changes. Already rolling out through
-          Tealium? Use <code>tealium-tag.html</code> at the repo root instead — it adds the
-          load-rule and consent-gating guidance this direct embed doesn't.
-        </p>
-      </div>
-    </div>
+    <Card title="Website installation" subtitle={<>Paste once, before <Text is="code" size={300}>&lt;/body&gt;</Text>, on any page that should show popups.</>}
+      right={<Button onClick={copy}>{copied ? 'Copied!' : 'Copy code'}</Button>}>
+      <Pane is="pre" fontFamily="mono" fontSize={12.5} margin={0} whiteSpace="pre-wrap" overflowX="auto"
+        background="#F7F8FA" border="1px solid #E7E2DF" borderRadius={8} padding={14}>
+        {snippet}
+      </Pane>
+      <Alert intent="warning" marginTop={12}>
+        <strong>One extra step for a real site:</strong> the popups will render fine, but
+        every event (impressions, clicks, leads — everything Statistics shows) gets silently
+        rejected until that site's origin is added to <Text is="code" size={300}>COLLECTOR_ALLOWED_ORIGINS</Text>.
+        Popups working but Statistics staying empty is the symptom. This is an environment
+        variable on the server, not something set from this screen.
+      </Alert>
+      <Text size={300} color="muted" display="block" marginTop={12}>
+        Loads the real SDK from this deployment (<Text is="code" size={300}>{SDK_ORIGIN}</Text>). Which popups
+        show, to whom, and when is controlled entirely from <strong>Popups</strong> and{' '}
+        <strong>Targeting</strong> — nothing about that is in this snippet, so it never needs
+        to be re-pasted when content or targeting changes. Already rolling out through
+        Tealium? Use <Text is="code" size={300}>tealium-tag.html</Text> at the repo root instead — it adds the
+        load-rule and consent-gating guidance this direct embed doesn't.
+      </Text>
+    </Card>
   );
 }
 
@@ -127,88 +127,102 @@ export default function Settings() {
     load();
   }
 
-  if (!settings) return <div className="empty-state">Loading…</div>;
+  if (!settings) return <Text color="muted">Loading…</Text>;
 
   return (
-    <div className="stack">
-      <div className="card">
-        <div className="card-header">
-          <div><h2>Platform controls</h2><p>Kill switch and global frequency caps.</p></div>
-        </div>
-        <div className="card-pad row-between">
-          <div>
-            <strong>{settings.kill_switch ? 'ALL popups are currently disabled' : 'Popups are live as normal'}</strong>
-            <div className="small muted">Instant, no deploy needed.</div>
-          </div>
+    <Pane display="flex" flexDirection="column" gap={16}>
+      <Card title="Platform controls" subtitle="Kill switch and global frequency caps.">
+        <Pane display="flex" justifyContent="space-between" alignItems="center" marginBottom={16}>
+          <Pane>
+            <Text fontWeight={600} display="block">
+              {settings.kill_switch ? 'ALL popups are currently disabled' : 'Popups are live as normal'}
+            </Text>
+            <Text size={300} color="muted">Instant, no deploy needed.</Text>
+          </Pane>
           {canOperate && (
-            <button className={'btn ' + (settings.kill_switch ? 'btn-primary' : 'btn-danger')} disabled={busy} onClick={toggleKillSwitch}>
+            <Button appearance="primary" intent={settings.kill_switch ? 'none' : 'danger'}
+              disabled={busy} onClick={toggleKillSwitch}>
               {settings.kill_switch ? 'Turn popups back on' : 'Kill all popups'}
-            </button>
+            </Button>
           )}
-        </div>
-        <div className="legend-line" style={{ margin: '0 24px' }} />
-        <div className="card-pad field-row">
-          <div className="field">
-            <label>Max per page view</label>
-            <input type="number" disabled={!canOperate} value={settings.global_caps.max_per_pageview}
+        </Pane>
+        <Pane borderTop="1px solid #E7E2DF" paddingTop={16} display="flex" gap={16} flexWrap="wrap">
+          <Pane>
+            <Text size={300} display="block" marginBottom={4}>Max per page view</Text>
+            <TextInput type="number" disabled={!canOperate} value={settings.global_caps.max_per_pageview}
               onChange={(e) => updateCaps('max_per_pageview', parseInt(e.target.value, 10) || 1)} />
-          </div>
-          <div className="field">
-            <label>Max per session</label>
-            <input type="number" disabled={!canOperate} value={settings.global_caps.max_per_session}
+          </Pane>
+          <Pane>
+            <Text size={300} display="block" marginBottom={4}>Max per session</Text>
+            <TextInput type="number" disabled={!canOperate} value={settings.global_caps.max_per_session}
               onChange={(e) => updateCaps('max_per_session', parseInt(e.target.value, 10) || 1)} />
-          </div>
-        </div>
-      </div>
+          </Pane>
+        </Pane>
+      </Card>
 
       <InstallCard />
 
-      <div className="card">
-        <div className="card-header"><div><h2>API keys</h2><p>For the source system's ingestion API.</p></div></div>
-        <table>
-          <thead><tr><th>Name</th><th>Prefix</th><th>Created</th><th>Last used</th><th></th></tr></thead>
-          <tbody>
+      <Card title="API keys" subtitle="For the source system's ingestion API." bodyPadding={0}>
+        <Table>
+          <Table.Head>
+            <Table.TextHeaderCell>Name</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={140} flexGrow={0}>Prefix</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={110} flexGrow={0}>Created</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={160} flexGrow={0}>Last used</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={90} flexGrow={0}> </Table.TextHeaderCell>
+          </Table.Head>
+          <Table.Body>
             {settings.api_keys.map((k) => (
-              <tr key={k.id}>
-                <td>{k.name}</td>
-                <td className="mono small">{k.prefix}…</td>
-                <td className="small muted">{new Date(k.created_at).toLocaleDateString()}</td>
-                <td className="small muted">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</td>
-                <td>{canOperate && <button className="btn btn-sm btn-danger" onClick={() => revokeKey(k.id)}>Revoke</button>}</td>
-              </tr>
+              <Table.Row key={k.id}>
+                <Table.TextCell>{k.name}</Table.TextCell>
+                <Table.TextCell flexBasis={140} flexGrow={0}><Text fontFamily="mono" size={300}>{k.prefix}…</Text></Table.TextCell>
+                <Table.TextCell flexBasis={110} flexGrow={0}><Text size={300} color="muted">{new Date(k.created_at).toLocaleDateString()}</Text></Table.TextCell>
+                <Table.TextCell flexBasis={160} flexGrow={0}>
+                  <Text size={300} color="muted">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</Text>
+                </Table.TextCell>
+                <Table.Cell flexBasis={90} flexGrow={0}>
+                  {canOperate && <Button size="small" intent="danger" onClick={() => revokeKey(k.id)}>Revoke</Button>}
+                </Table.Cell>
+              </Table.Row>
             ))}
-          </tbody>
-        </table>
+          </Table.Body>
+        </Table>
         {canOperate && (
-          <form className="card-pad row" onSubmit={issueKey}>
-            <input type="text" placeholder="Key name (e.g. Source system — EU region)" value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)} style={{ flex: 1, padding: 8, borderRadius: 4, border: '1px solid var(--border)' }} />
-            <button className="btn btn-primary" disabled={busy}>Issue new key</button>
-          </form>
+          <Pane is="form" display="flex" gap={10} padding={16} onSubmit={issueKey}>
+            <TextInput flex={1} placeholder="Key name (e.g. Source system — EU region)" value={newKeyName}
+              onChange={(e) => setNewKeyName(e.target.value)} />
+            <Button appearance="primary" disabled={busy}>Issue new key</Button>
+          </Pane>
         )}
         {issuedSecret && (
-          <div className="alert alert-warn" style={{ margin: '0 24px 20px' }}>
-            Full secret (shown once, copy it now): <span className="mono">{issuedSecret}</span>
-          </div>
+          <Alert intent="warning" margin={16} marginTop={0}>
+            Full secret (shown once, copy it now): <Text is="code" size={300}>{issuedSecret}</Text>
+          </Alert>
         )}
-      </div>
+      </Card>
 
-      <div className="card">
-        <div className="card-header"><h2>Audit log</h2></div>
-        <table>
-          <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th></tr></thead>
-          <tbody>
+      <Card title="Audit log" bodyPadding={0}>
+        <Table>
+          <Table.Head>
+            <Table.TextHeaderCell flexBasis={170} flexGrow={0}>When</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={200} flexGrow={0}>Actor</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={180} flexGrow={0}>Action</Table.TextHeaderCell>
+            <Table.TextHeaderCell>Entity</Table.TextHeaderCell>
+          </Table.Head>
+          <Table.Body>
             {(audit || []).map((a) => (
-              <tr key={a.id}>
-                <td className="small muted">{new Date(a.timestamp).toLocaleString()}</td>
-                <td className="small">{a.actor} <span className="muted">({a.role})</span></td>
-                <td className="mono small">{a.action}</td>
-                <td className="small muted">{a.entity_type}:{a.entity_id}</td>
-              </tr>
+              <Table.Row key={a.id}>
+                <Table.TextCell flexBasis={170} flexGrow={0}><Text size={300} color="muted">{new Date(a.timestamp).toLocaleString()}</Text></Table.TextCell>
+                <Table.TextCell flexBasis={200} flexGrow={0}>
+                  <Text size={300}>{a.actor} <Text size={300} color="muted">({a.role})</Text></Text>
+                </Table.TextCell>
+                <Table.TextCell flexBasis={180} flexGrow={0}><Text fontFamily="mono" size={300}>{a.action}</Text></Table.TextCell>
+                <Table.TextCell><Text size={300} color="muted">{a.entity_type}:{a.entity_id}</Text></Table.TextCell>
+              </Table.Row>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          </Table.Body>
+        </Table>
+      </Card>
+    </Pane>
   );
 }

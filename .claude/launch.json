@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "admin-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["admin/server/index.js"],
+      "port": 8787
+    }
+  ]
+}

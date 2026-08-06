@@ -1,7 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Pane, Text, TextInput, Textarea, Button, Alert, Badge, Table, Code } from 'evergreen-ui';
 import { api } from '../lib/api';
 import { useRole } from '../lib/RoleContext.jsx';
 import { EntitySelect } from '../components/EntitySelect.jsx';
+import { Card } from '../components/Card.jsx';
+import { Chip } from '../components/Chip.jsx';
 
 function DomainForm({ onSaved }) {
   const [host, setHost] = useState('');
@@ -36,50 +39,53 @@ function DomainForm({ onSaved }) {
   }
 
   return (
-    <form className="card" onSubmit={submit}>
-      <div className="card-header"><div><h2>Add / update domain</h2><p>Compliance only. Exact-hostname match.</p></div></div>
-      <div className="card-pad stack">
-        <div className="field-row">
-          <div className="field">
-            <label>Host</label>
-            <input type="text" placeholder="e.g. promo.libertex.com" value={host} onChange={(e) => setHost(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label>Broker entity</label>
-            <EntitySelect value={entity} onChange={(e) => setEntity(e.target.value)} />
-          </div>
-        </div>
-        <div className="field">
-          <label>Widget script URL</label>
-          <input type="text" placeholder="https://lib.libertex.com/landing/js/landing-api.min.X.js" value={scriptSrc} onChange={(e) => setScriptSrc(e.target.value)} required />
-        </div>
-        <div className="field">
-          <label>API key</label>
-          <input type="text" className="mono" value={apiKey} onChange={(e) => setApiKey(e.target.value)} required />
-          <p className="field-hint">Not treated as secret — this key is already embedded in the production page's client-side JS.</p>
-        </div>
-        <div className="field">
-          <label>Fields the widget collects</label>
-          <div className="chip-select">
-            {['email', 'password', 'phone'].map((f) => (
-              <button key={f} type="button" className={'chip' + (fields.includes(f) ? ' selected' : '')} onClick={() => toggleField(f)}>{f}</button>
-            ))}
-          </div>
-        </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Tealium page_broker</label>
-            <input type="text" placeholder={entity} value={pageBroker} onChange={(e) => setPageBroker(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>Tealium page_language</label>
-            <input type="text" value={pageLanguage} onChange={(e) => setPageLanguage(e.target.value)} />
-          </div>
-        </div>
-        {error && <div className="alert alert-danger">{error}</div>}
-        <div><button className="btn btn-accent" disabled={busy}>{busy ? 'Saving…' : 'Save domain'}</button></div>
-      </div>
-    </form>
+    <Pane is="form" onSubmit={submit}>
+      <Card title="Add / update domain" subtitle="Compliance only. Exact-hostname match.">
+        <Pane display="flex" flexDirection="column" gap={14}>
+          <Pane display="flex" gap={16} flexWrap="wrap">
+            <Pane flex={1} minWidth={220}>
+              <Text size={300} display="block" marginBottom={4}>Host</Text>
+              <TextInput width="100%" placeholder="e.g. promo.libertex.com" value={host} onChange={(e) => setHost(e.target.value)} required />
+            </Pane>
+            <Pane>
+              <Text size={300} display="block" marginBottom={4}>Broker entity</Text>
+              <EntitySelect value={entity} onChange={(e) => setEntity(e.target.value)} />
+            </Pane>
+          </Pane>
+          <Pane>
+            <Text size={300} display="block" marginBottom={4}>Widget script URL</Text>
+            <TextInput width="100%" placeholder="https://lib.libertex.com/landing/js/landing-api.min.X.js" value={scriptSrc} onChange={(e) => setScriptSrc(e.target.value)} required />
+          </Pane>
+          <Pane>
+            <Text size={300} display="block" marginBottom={4}>API key</Text>
+            <TextInput width="100%" fontFamily="mono" value={apiKey} onChange={(e) => setApiKey(e.target.value)} required />
+            <Text size={300} color="muted" display="block" marginTop={6}>
+              Not treated as secret — this key is already embedded in the production page's client-side JS.
+            </Text>
+          </Pane>
+          <Pane>
+            <Text size={300} display="block" marginBottom={6}>Fields the widget collects</Text>
+            <Pane display="flex" gap={8}>
+              {['email', 'password', 'phone'].map((f) => (
+                <Chip key={f} selected={fields.includes(f)} onClick={() => toggleField(f)}>{f}</Chip>
+              ))}
+            </Pane>
+          </Pane>
+          <Pane display="flex" gap={16} flexWrap="wrap">
+            <Pane>
+              <Text size={300} display="block" marginBottom={4}>Tealium page_broker</Text>
+              <TextInput placeholder={entity} value={pageBroker} onChange={(e) => setPageBroker(e.target.value)} />
+            </Pane>
+            <Pane>
+              <Text size={300} display="block" marginBottom={4}>Tealium page_language</Text>
+              <TextInput value={pageLanguage} onChange={(e) => setPageLanguage(e.target.value)} />
+            </Pane>
+          </Pane>
+          {error && <Alert intent="danger">{error}</Alert>}
+          <Pane><Button appearance="primary" disabled={busy}>{busy ? 'Saving…' : 'Save domain'}</Button></Pane>
+        </Pane>
+      </Card>
+    </Pane>
   );
 }
 
@@ -116,53 +122,57 @@ function ConsentForm({ onPublished }) {
   }
 
   return (
-    <form className="card" onSubmit={submit}>
-      <div className="card-header"><div><h2>Publish consent wording</h2><p>Compliance only. Replaces the current wording going forward.</p></div></div>
-      <div className="card-pad stack">
-        <div className="field-row">
-          <div className="field">
-            <label>Broker entity</label>
-            <EntitySelect value={entity} onChange={(e) => setEntity(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>Locale</label>
-            <input type="text" value={locale} onChange={(e) => setLocale(e.target.value)} />
-          </div>
-        </div>
-        <div className="field">
-          <label>Text template</label>
-          <textarea
-            value={textTemplate}
-            onChange={(e) => setTextTemplate(e.target.value)}
-            placeholder="e.g. By registering an account I agree to the {privacy} and the {terms}."
-            required
-          />
-          <p className="field-hint"><code>{'{privacy}'}</code> and <code>{'{terms}'}</code> are replaced with real links — never raw markup (§10.2).</p>
-        </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Privacy link label</label>
-            <input type="text" value={privacyLabel} onChange={(e) => setPrivacyLabel(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label>Privacy link URL</label>
-            <input type="text" value={privacyUrl} onChange={(e) => setPrivacyUrl(e.target.value)} required />
-          </div>
-        </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Terms link label</label>
-            <input type="text" value={termsLabel} onChange={(e) => setTermsLabel(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label>Terms link URL</label>
-            <input type="text" value={termsUrl} onChange={(e) => setTermsUrl(e.target.value)} required />
-          </div>
-        </div>
-        {error && <div className="alert alert-danger">{error}</div>}
-        <div><button className="btn btn-accent" disabled={busy}>{busy ? 'Publishing…' : 'Publish version'}</button></div>
-      </div>
-    </form>
+    <Pane is="form" onSubmit={submit}>
+      <Card title="Publish consent wording" subtitle="Compliance only. Replaces the current wording going forward.">
+        <Pane display="flex" flexDirection="column" gap={14}>
+          <Pane display="flex" gap={16} flexWrap="wrap">
+            <Pane>
+              <Text size={300} display="block" marginBottom={4}>Broker entity</Text>
+              <EntitySelect value={entity} onChange={(e) => setEntity(e.target.value)} />
+            </Pane>
+            <Pane>
+              <Text size={300} display="block" marginBottom={4}>Locale</Text>
+              <TextInput value={locale} onChange={(e) => setLocale(e.target.value)} />
+            </Pane>
+          </Pane>
+          <Pane>
+            <Text size={300} display="block" marginBottom={4}>Text template</Text>
+            <Textarea
+              width="100%"
+              value={textTemplate}
+              onChange={(e) => setTextTemplate(e.target.value)}
+              placeholder="e.g. By registering an account I agree to the {privacy} and the {terms}."
+              required
+            />
+            <Text size={300} color="muted" display="block" marginTop={6}>
+              <Code>{'{privacy}'}</Code> and <Code>{'{terms}'}</Code> are replaced with real links — never raw markup (§10.2).
+            </Text>
+          </Pane>
+          <Pane display="flex" gap={16} flexWrap="wrap">
+            <Pane flex={1} minWidth={200}>
+              <Text size={300} display="block" marginBottom={4}>Privacy link label</Text>
+              <TextInput width="100%" value={privacyLabel} onChange={(e) => setPrivacyLabel(e.target.value)} required />
+            </Pane>
+            <Pane flex={1} minWidth={200}>
+              <Text size={300} display="block" marginBottom={4}>Privacy link URL</Text>
+              <TextInput width="100%" value={privacyUrl} onChange={(e) => setPrivacyUrl(e.target.value)} required />
+            </Pane>
+          </Pane>
+          <Pane display="flex" gap={16} flexWrap="wrap">
+            <Pane flex={1} minWidth={200}>
+              <Text size={300} display="block" marginBottom={4}>Terms link label</Text>
+              <TextInput width="100%" value={termsLabel} onChange={(e) => setTermsLabel(e.target.value)} required />
+            </Pane>
+            <Pane flex={1} minWidth={200}>
+              <Text size={300} display="block" marginBottom={4}>Terms link URL</Text>
+              <TextInput width="100%" value={termsUrl} onChange={(e) => setTermsUrl(e.target.value)} required />
+            </Pane>
+          </Pane>
+          {error && <Alert intent="danger">{error}</Alert>}
+          <Pane><Button appearance="primary" disabled={busy}>{busy ? 'Publishing…' : 'Publish version'}</Button></Pane>
+        </Pane>
+      </Card>
+    </Pane>
   );
 }
 
@@ -178,55 +188,76 @@ export default function Registration() {
   }, []);
   useEffect(load, [load]);
 
-  if (!domains || !consent) return <div className="empty-state">Loading…</div>;
+  if (!domains || !consent) return <Text color="muted">Loading…</Text>;
 
   return (
-    <div className="stack">
-      <div className="card">
-        <div className="card-header">
-          <div><h2>Registration domains</h2><p>This platform embeds the existing widget — it never captures or forwards leads itself.</p></div>
-        </div>
-        <table>
-          <thead><tr><th>Host</th><th>Entity</th><th>Widget script</th><th>Fields</th><th>Tealium broker</th></tr></thead>
-          <tbody>
+    <Pane display="flex" flexDirection="column" gap={16}>
+      <Card title="Registration domains" subtitle="This platform embeds the existing widget — it never captures or forwards leads itself." bodyPadding={0}>
+        <Table>
+          <Table.Head>
+            <Table.TextHeaderCell>Host</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={80} flexGrow={0}>Entity</Table.TextHeaderCell>
+            <Table.TextHeaderCell>Widget script</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={160} flexGrow={0}>Fields</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={140} flexGrow={0}>Tealium broker</Table.TextHeaderCell>
+          </Table.Head>
+          <Table.Body>
             {Object.entries(domains).map(([host, cfg]) => (
-              <tr key={host}>
-                <td className="mono small">{host}</td>
-                <td>{cfg.entity}</td>
-                <td className="small mono" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cfg.script_src}</td>
-                <td className="small">{(cfg.fields || []).join(', ')}</td>
-                <td className="small muted">{cfg.tealium?.page_broker}</td>
-              </tr>
+              <Table.Row key={host}>
+                <Table.TextCell><Text fontFamily="mono" size={300}>{host}</Text></Table.TextCell>
+                <Table.TextCell flexBasis={80} flexGrow={0}>{cfg.entity}</Table.TextCell>
+                <Table.TextCell>
+                  <Text fontFamily="mono" size={300} display="block" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                    {cfg.script_src}
+                  </Text>
+                </Table.TextCell>
+                <Table.TextCell flexBasis={160} flexGrow={0}>{(cfg.fields || []).join(', ')}</Table.TextCell>
+                <Table.TextCell flexBasis={140} flexGrow={0}><Text size={300} color="muted">{cfg.tealium?.page_broker}</Text></Table.TextCell>
+              </Table.Row>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </Table.Body>
+        </Table>
+      </Card>
 
       {Object.keys(consent.history).map((entity) => (
-        <div className="card" key={entity}>
-          <div className="card-header"><h2>{entity.toUpperCase()} — consent text history</h2></div>
-          <table>
-            <thead><tr><th>v</th><th>Locale</th><th>Template</th><th>Links</th><th>Effective</th><th>Approved by</th></tr></thead>
-            <tbody>
+        <Card title={entity.toUpperCase() + ' — consent text history'} key={entity} bodyPadding={0}>
+          <Table>
+            <Table.Head>
+              <Table.TextHeaderCell flexBasis={120} flexGrow={0}>v</Table.TextHeaderCell>
+              <Table.TextHeaderCell flexBasis={80} flexGrow={0}>Locale</Table.TextHeaderCell>
+              <Table.TextHeaderCell>Template</Table.TextHeaderCell>
+              <Table.TextHeaderCell flexBasis={140} flexGrow={0}>Links</Table.TextHeaderCell>
+              <Table.TextHeaderCell flexBasis={220} flexGrow={0}>Effective</Table.TextHeaderCell>
+              <Table.TextHeaderCell flexBasis={140} flexGrow={0}>Approved by</Table.TextHeaderCell>
+            </Table.Head>
+            <Table.Body>
               {consent.history[entity].map((row) => {
                 const isCurrent = !row.effective_to;
                 return (
-                  <tr key={row.id} style={isCurrent ? { background: 'var(--bg-sunken)' } : undefined}>
-                    <td>{row.version}{isCurrent && <span className="badge badge-live" style={{ marginLeft: 6 }}>current</span>}</td>
-                    <td className="small muted">{row.locale}</td>
-                    <td className="small" style={{ maxWidth: 340 }}>{row.text_template}</td>
-                    <td className="small muted">{Object.keys(row.links || {}).join(', ')}</td>
-                    <td className="small muted">{new Date(row.effective_from).toLocaleDateString()} → {row.effective_to ? new Date(row.effective_to).toLocaleDateString() : '—'}</td>
-                    <td className="small muted">{row.approved_by}</td>
-                  </tr>
+                  <Table.Row key={row.id} background={isCurrent ? '#F1EEEC' : undefined}>
+                    <Table.TextCell flexBasis={120} flexGrow={0}>
+                      <Pane display="flex" alignItems="center" gap={6}>
+                        <Text size={300}>{row.version}</Text>{isCurrent && <Badge color="green">current</Badge>}
+                      </Pane>
+                    </Table.TextCell>
+                    <Table.TextCell flexBasis={80} flexGrow={0}><Text size={300} color="muted">{row.locale}</Text></Table.TextCell>
+                    <Table.TextCell><Text size={300}>{row.text_template}</Text></Table.TextCell>
+                    <Table.TextCell flexBasis={140} flexGrow={0}><Text size={300} color="muted">{Object.keys(row.links || {}).join(', ')}</Text></Table.TextCell>
+                    <Table.TextCell flexBasis={220} flexGrow={0}>
+                      <Text size={300} color="muted">
+                        {new Date(row.effective_from).toLocaleDateString()} → {row.effective_to ? new Date(row.effective_to).toLocaleDateString() : '—'}
+                      </Text>
+                    </Table.TextCell>
+                    <Table.TextCell flexBasis={140} flexGrow={0}><Text size={300} color="muted">{row.approved_by}</Text></Table.TextCell>
+                  </Table.Row>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </Table.Body>
+          </Table>
+        </Card>
       ))}
       {Object.keys(consent.history).length === 0 && (
-        <div className="alert alert-suppressed">No consent text published yet for any entity — a modal_form popup on an unmapped entity/locale is suppressed, same fail-safe as the legal registry (§9.4, §11.3.3).</div>
+        <Alert intent="warning">No consent text published yet for any entity — a modal_form popup on an unmapped entity/locale is suppressed, same fail-safe as the legal registry (§9.4, §11.3.3).</Alert>
       )}
 
       {isCompliance ? (
@@ -235,8 +266,8 @@ export default function Registration() {
           <ConsentForm onPublished={load} />
         </>
       ) : (
-        <div className="alert alert-info">Read-only for your current role. Switch to Compliance to edit.</div>
+        <Alert intent="none">Read-only for your current role. Switch to Compliance to edit.</Alert>
       )}
-    </div>
+    </Pane>
   );
 }

@@ -1,9 +1,15 @@
 import { useEffect, useState, useCallback, Fragment } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import {
+  Pane, Heading, Paragraph, Text, TextInput, Textarea, Select, Button, Alert, Radio
+} from 'evergreen-ui';
 import { api } from '../lib/api';
 import { StatusBadge } from '../components/StatusBadge.jsx';
+import { Card } from '../components/Card.jsx';
+import { Chip } from '../components/Chip.jsx';
 import { useRole } from '../lib/RoleContext.jsx';
 
+const ACCENT = '#FF4C0B';
 const DEVICES = ['desktop', 'tablet', 'mobile'];
 const FREQ_PER = ['session', 'day', 'lifetime'];
 
@@ -27,7 +33,7 @@ const TRIGGER_OPTIONS = [
 
 function TriggerIcon({ type }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {TRIGGER_ICON_PATHS[type]}
     </svg>
   );
@@ -61,9 +67,19 @@ function ContentValue({ value }) {
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value) && value.every((v) => typeof v !== 'object')) return value.join(', ');
   if (typeof value === 'object') {
-    return <pre className="mono small" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{JSON.stringify(value, null, 2)}</pre>;
+    return <Pane is="pre" fontFamily="mono" fontSize={12} whiteSpace="pre-wrap" margin={0}>{JSON.stringify(value, null, 2)}</Pane>;
   }
   return String(value);
+}
+
+// Two-column key/value row used by the read-only Content card below.
+function KvRow({ label, children }) {
+  return (
+    <Pane display="flex" paddingY={8} borderBottom="1px solid #F1F3F8">
+      <Text width={130} flexShrink={0} color="muted" size={300}>{label}</Text>
+      <Pane flex={1} minWidth={0}><Text size={300}>{children}</Text></Pane>
+    </Pane>
+  );
 }
 
 function toLocalInput(iso) {
@@ -72,6 +88,39 @@ function toLocalInput(iso) {
 }
 function fromLocalInput(v) {
   return v ? new Date(v).toISOString() : null;
+}
+
+// Evergreen has no "selectable card" primitive — this is a real <button>
+// (via Pane's polymorphic `is`) styled to match Evergreen's spacing/radius
+// language, since a grid of icon+title+description choices like this
+// doesn't map onto Radio/Select without losing the at-a-glance layout.
+function ChoiceCard({ selected, disabled, onClick, icon, title, desc }) {
+  return (
+    <Pane
+      is="button"
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      textAlign="left"
+      display="flex"
+      flexDirection="column"
+      gap={6}
+      padding={14}
+      borderRadius={8}
+      border={selected ? '2px solid ' + ACCENT : '1px solid #D8DAE5'}
+      background={selected ? '#FFF4EE' : 'white'}
+      cursor={disabled ? 'not-allowed' : 'pointer'}
+      opacity={disabled ? 0.6 : 1}
+      position="relative"
+    >
+      {selected && (
+        <Pane position="absolute" top={10} right={10} color={ACCENT} fontWeight={700} fontSize={13}>✓</Pane>
+      )}
+      <Pane color={selected ? ACCENT : '#696F8C'}>{icon}</Pane>
+      <Text fontWeight={600} size={300}>{title}</Text>
+      <Text size={300} color="muted">{desc}</Text>
+    </Pane>
+  );
 }
 
 export default function PopupSettings() {
@@ -89,8 +138,8 @@ export default function PopupSettings() {
   }, [id]);
   useEffect(load, [load]);
 
-  if (error) return <div className="alert alert-danger">{error}</div>;
-  if (!popup) return <div className="empty-state">Loading…</div>;
+  if (error) return <Alert intent="danger">{error}</Alert>;
+  if (!popup) return <Pane padding={40} textAlign="center"><Text color="muted">Loading…</Text></Pane>;
 
   function setField(path, value) {
     setPopup((prev) => {
@@ -136,195 +185,169 @@ export default function PopupSettings() {
   const legal = popup.content.legal || { mode: 'auto' };
 
   return (
-    <div className="stack">
-      <div className="row-between">
-        <div>
-          <Link to="/popups" className="small muted">← All popups</Link>
-          <h2 style={{ marginTop: 6 }}>{popup.name}</h2>
-        </div>
-        <div className="row">
+    <Pane display="flex" flexDirection="column" gap={16}>
+      <Pane display="flex" justifyContent="space-between" alignItems="flex-start">
+        <Pane>
+          <Link to="/popups"><Text size={300} color="muted">← All popups</Text></Link>
+          <Heading size={700} marginTop={6}>{popup.name}</Heading>
+        </Pane>
+        <Pane display="flex" alignItems="center" gap={10}>
           <StatusBadge status={popup.status} />
-          <span className="mono small muted">{popup.template}</span>
-        </div>
-      </div>
+          <Text fontFamily="mono" size={300} color="muted">{popup.template}</Text>
+        </Pane>
+      </Pane>
 
-      <div className="grid-2">
-        <div className="stack">
-          <div className="card">
-            <div className="card-header">
-              <div><h2>Schedule &amp; priority</h2><p>Highest priority wins among matches.</p></div>
-            </div>
-            <div className="card-pad">
-              <div className="field-row">
-                <div className="field">
-                  <label>Starts at</label>
-                  <input type="datetime-local" disabled={!canOperate}
-                    value={toLocalInput(popup.starts_at)}
-                    onChange={(e) => setField('starts_at', fromLocalInput(e.target.value))} />
-                </div>
-                <div className="field">
-                  <label>Ends at</label>
-                  <input type="datetime-local" disabled={!canOperate}
-                    value={toLocalInput(popup.ends_at)}
-                    onChange={(e) => setField('ends_at', fromLocalInput(e.target.value))} />
-                </div>
-              </div>
-              <div className="field" style={{ maxWidth: 160 }}>
-                <label>Priority</label>
-                <input type="number" disabled={!canOperate} value={popup.priority}
-                  onChange={(e) => setField('priority', parseInt(e.target.value, 10) || 0)} />
-              </div>
-            </div>
-          </div>
+      <Pane display="grid" gridTemplateColumns="1.3fr 1fr" gap={16}>
+        <Pane display="flex" flexDirection="column" gap={16}>
+          <Card title="Schedule & priority" subtitle="Highest priority wins among matches.">
+            <Pane display="flex" gap={16} marginBottom={16} flexWrap="wrap">
+              <Pane>
+                <Text size={300} display="block" marginBottom={4}>Starts at</Text>
+                <TextInput type="datetime-local" disabled={!canOperate}
+                  value={toLocalInput(popup.starts_at)}
+                  onChange={(e) => setField('starts_at', fromLocalInput(e.target.value))} />
+              </Pane>
+              <Pane>
+                <Text size={300} display="block" marginBottom={4}>Ends at</Text>
+                <TextInput type="datetime-local" disabled={!canOperate}
+                  value={toLocalInput(popup.ends_at)}
+                  onChange={(e) => setField('ends_at', fromLocalInput(e.target.value))} />
+              </Pane>
+            </Pane>
+            <Pane maxWidth={160}>
+              <Text size={300} display="block" marginBottom={4}>Priority</Text>
+              <TextInput type="number" disabled={!canOperate} value={popup.priority}
+                onChange={(e) => setField('priority', parseInt(e.target.value, 10) || 0)} />
+            </Pane>
+          </Card>
 
-          <div className="card">
-            <div className="card-header"><div><h2>User behavior</h2><p>When would you like the popup to show up?</p></div></div>
-            <div className="card-pad">
-              <div className="field">
-                <label>Trigger type</label>
-                <div className="choice-grid">
-                  {TRIGGER_OPTIONS.map((opt) => {
-                    const selected = (popup.trigger?.type || 'immediate') === opt.value;
-                    return (
-                      <button key={opt.value} type="button" disabled={!canOperate}
-                        className={'choice-card' + (selected ? ' selected' : '')}
-                        onClick={() => setField('trigger', { type: opt.value, value: popup.trigger?.value, selector: popup.trigger?.selector })}>
-                        {selected && <span className="choice-badge">✓</span>}
-                        <span className="choice-icon"><TriggerIcon type={opt.value} /></span>
-                        <span className="choice-title">{opt.label}</span>
-                        <span className="choice-desc">{opt.desc}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              {['delay', 'scroll', 'inactivity'].includes(popup.trigger?.type) && (
-                <div className="field" style={{ maxWidth: 200 }}>
-                  <label>
-                    {popup.trigger.type === 'delay' ? 'Delay (ms)'
-                      : popup.trigger.type === 'scroll' ? 'Scroll depth (%)'
-                      : 'Inactivity (seconds)'}
-                  </label>
-                  <input type="number" disabled={!canOperate} value={popup.trigger.value || 0}
-                    onChange={(e) => setField('trigger.value', parseInt(e.target.value, 10) || 0)} />
-                </div>
+          <Card title="User behavior" subtitle="When would you like the popup to show up?">
+            <Text size={300} display="block" marginBottom={8}>Trigger type</Text>
+            <Pane display="grid" gridTemplateColumns="repeat(auto-fill, minmax(150px, 1fr))" gap={10}>
+              {TRIGGER_OPTIONS.map((opt) => {
+                const selected = (popup.trigger?.type || 'immediate') === opt.value;
+                return (
+                  <ChoiceCard key={opt.value} selected={selected} disabled={!canOperate}
+                    onClick={() => setField('trigger', { type: opt.value, value: popup.trigger?.value, selector: popup.trigger?.selector })}
+                    icon={<TriggerIcon type={opt.value} />} title={opt.label} desc={opt.desc} />
+                );
+              })}
+            </Pane>
+            {['delay', 'scroll', 'inactivity'].includes(popup.trigger?.type) && (
+              <Pane maxWidth={200} marginTop={16}>
+                <Text size={300} display="block" marginBottom={4}>
+                  {popup.trigger.type === 'delay' ? 'Delay (ms)'
+                    : popup.trigger.type === 'scroll' ? 'Scroll depth (%)'
+                    : 'Inactivity (seconds)'}
+                </Text>
+                <TextInput type="number" disabled={!canOperate} value={popup.trigger.value || 0}
+                  onChange={(e) => setField('trigger.value', parseInt(e.target.value, 10) || 0)} />
+              </Pane>
+            )}
+            {popup.trigger?.type === 'element_click' && (
+              <Pane maxWidth={340} marginTop={16}>
+                <Text size={300} display="block" marginBottom={4}>CSS selector</Text>
+                <TextInput width="100%" disabled={!canOperate} placeholder="e.g. #open-account-btn"
+                  value={popup.trigger.selector || ''}
+                  onChange={(e) => setField('trigger.selector', e.target.value)} />
+                <Text size={300} color="muted" display="block" marginTop={6}>
+                  Fires when the visitor clicks any element matching this selector.
+                </Text>
+              </Pane>
+            )}
+          </Card>
+
+          <Card title="Frequency" subtitle="How often can this popup show, and when should it stop?">
+            <Pane marginBottom={18}>
+              <Text size={300} display="block" marginBottom={6}>Display frequency</Text>
+              <Pane display="flex" gap={8} alignItems="center" flexWrap="wrap">
+                <Text size={300} color="muted">Show up to</Text>
+                <TextInput type="number" width={70} disabled={!canOperate}
+                  value={popup.frequency?.max_impressions ?? ''} placeholder="∞"
+                  onChange={(e) => setField('frequency.max_impressions', e.target.value === '' ? null : (parseInt(e.target.value, 10) || 0))} />
+                <Text size={300} color="muted">times per</Text>
+                <Select disabled={!canOperate} value={popup.frequency?.per || 'session'}
+                  onChange={(e) => setField('frequency.per', e.target.value)} width={130}>
+                  {FREQ_PER.map((p) => <option key={p} value={p}>{p}</option>)}
+                </Select>
+              </Pane>
+              {popup.frequency?.max_impressions == null && (
+                <Text size={300} color="muted" display="block" marginTop={6}>
+                  No per-popup cap — blank means display on every page view (still subject to the platform cap below).
+                </Text>
               )}
-              {popup.trigger?.type === 'element_click' && (
-                <div className="field" style={{ maxWidth: 320 }}>
-                  <label>CSS selector</label>
-                  <input type="text" disabled={!canOperate} placeholder="e.g. #open-account-btn"
-                    value={popup.trigger.selector || ''}
-                    onChange={(e) => setField('trigger.selector', e.target.value)} />
-                  <p className="field-hint">Fires when the visitor clicks any element matching this selector.</p>
-                </div>
+            </Pane>
+            <Pane marginBottom={12}>
+              <Text size={300} display="block" marginBottom={6}>Stop displaying after user action</Text>
+              <Pane display="flex" gap={8} alignItems="center" flexWrap="wrap">
+                <Text size={300} color="muted">Don't show again for</Text>
+                <TextInput type="number" width={70} disabled={!canOperate}
+                  value={popup.frequency?.dismiss_ttl_days ?? 0}
+                  onChange={(e) => setField('frequency.dismiss_ttl_days', parseInt(e.target.value, 10) || 0)} />
+                <Text size={300} color="muted">days after it's dismissed</Text>
+              </Pane>
+              {!popup.frequency?.dismiss_ttl_days && (
+                <Text size={300} color="muted" display="block" marginTop={6}>
+                  Never stop displaying the popup after a dismissal (0 days).
+                </Text>
               )}
-            </div>
-          </div>
+            </Pane>
+            <Text size={300} color="muted">Platform cap still applies on top: 1 per page view, 2 per session.</Text>
+          </Card>
 
-          <div className="card">
-            <div className="card-header"><div><h2>Frequency</h2><p>How often can this popup show, and when should it stop?</p></div></div>
-            <div className="card-pad stack">
-              <div className="field">
-                <label>Display frequency</label>
-                <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span className="small muted">Show up to</span>
-                  <input type="number" style={{ width: 70 }} disabled={!canOperate}
-                    value={popup.frequency?.max_impressions ?? ''} placeholder="∞"
-                    onChange={(e) => setField('frequency.max_impressions', e.target.value === '' ? null : (parseInt(e.target.value, 10) || 0))} />
-                  <span className="small muted">times per</span>
-                  <select disabled={!canOperate} value={popup.frequency?.per || 'session'}
-                    onChange={(e) => setField('frequency.per', e.target.value)}>
-                    {FREQ_PER.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <p className="field-hint">
-                  {popup.frequency?.max_impressions == null
-                    ? 'No per-popup cap — blank means display on every page view (still subject to the platform cap below).'
-                    : null}
-                </p>
-              </div>
-              <div className="field">
-                <label>Stop displaying after user action</label>
-                <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span className="small muted">Don't show again for</span>
-                  <input type="number" style={{ width: 70 }} disabled={!canOperate}
-                    value={popup.frequency?.dismiss_ttl_days ?? 0}
-                    onChange={(e) => setField('frequency.dismiss_ttl_days', parseInt(e.target.value, 10) || 0)} />
-                  <span className="small muted">days after it's dismissed</span>
-                </div>
-                <p className="field-hint">
-                  {!popup.frequency?.dismiss_ttl_days ? 'Never stop displaying the popup after a dismissal (0 days).' : null}
-                </p>
-              </div>
-              <p className="field-hint">Platform cap still applies on top: 1 per page view, 2 per session.</p>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-header"><h2>Devices</h2></div>
-            <div className="card-pad">
-              <div className="chip-select">
-                {DEVICES.map((d) => (
-                  <button key={d} type="button" disabled={!canOperate}
-                    className={'chip' + ((popup.devices || []).includes(d) ? ' selected' : '')}
-                    onClick={() => toggleDevice(d)}>
-                    {d}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <Card title="Devices">
+            <Pane display="flex" gap={8}>
+              {DEVICES.map((d) => (
+                <Chip key={d} selected={(popup.devices || []).includes(d)} disabled={!canOperate} onClick={() => toggleDevice(d)}>
+                  {d}
+                </Chip>
+              ))}
+            </Pane>
+          </Card>
 
           <LegalCard legal={legal} canOperate={canOperate} canCustomLegal={canCustomLegal}
             onChange={(next) => setField('content.legal', next)} />
 
           {canOperate && (
-            <div className="row">
-              <button className="btn btn-accent" disabled={saving} onClick={save}>
+            <Pane display="flex" alignItems="center" gap={12}>
+              <Button appearance="primary" disabled={saving} onClick={save}>
                 {saving ? 'Saving…' : 'Save changes'}
-              </button>
-              {savedAt && <span className="small muted">Saved {savedAt.toLocaleTimeString()}</span>}
-              {error && <span className="small" style={{ color: 'var(--danger)' }}>{error}</span>}
-            </div>
+              </Button>
+              {savedAt && <Text size={300} color="muted">Saved {savedAt.toLocaleTimeString()}</Text>}
+              {error && <Text size={300} color="danger">{error}</Text>}
+            </Pane>
           )}
-          {!canOperate && <p className="small muted">Viewer role — read only. Switch to Operator to edit.</p>}
-        </div>
+          {!canOperate && <Text size={300} color="muted">Viewer role — read only. Switch to Operator to edit.</Text>}
+        </Pane>
 
-        <div className="stack">
-          <div className="card">
-            <div className="card-header"><div><h2>Content</h2><p>Read-only — authored by the source system.</p></div></div>
-            <div className="card-pad">
-              <dl className="kv">
-                <dt>Heading</dt><dd>{popup.content.heading}</dd>
-                {popup.content.cta_label && <><dt>CTA</dt><dd>{popup.content.cta_label} → {popup.content.cta_url}</dd></>}
+        <Pane>
+          <Card title="Content" subtitle="Read-only — authored by the source system.">
+            <KvRow label="Heading">{popup.content.heading}</KvRow>
+            {popup.content.cta_label && (
+              <KvRow label="CTA">{popup.content.cta_label} → {popup.content.cta_url}</KvRow>
+            )}
 
-                {Object.keys(popup.content)
-                  .filter((k) => !CONTENT_FIELDS_HANDLED_SEPARATELY.has(k) && popup.content[k] != null && popup.content[k] !== '')
-                  .map((k) => (
-                    <Fragment key={k}>
-                      <dt>{humanizeContentKey(k)}</dt>
-                      <dd className={typeof popup.content[k] === 'object' ? 'mono small' : undefined}>
-                        <ContentValue value={popup.content[k]} />
-                      </dd>
-                    </Fragment>
+            {Object.keys(popup.content)
+              .filter((k) => !CONTENT_FIELDS_HANDLED_SEPARATELY.has(k) && popup.content[k] != null && popup.content[k] !== '')
+              .map((k) => (
+                <KvRow key={k} label={humanizeContentKey(k)}>
+                  <ContentValue value={popup.content[k]} />
+                </KvRow>
+              ))}
+
+            {popup.content.overrides && Object.keys(popup.content.overrides).length > 0 && (
+              <KvRow label="Overrides">
+                <Pane fontFamily="mono" fontSize={12}>
+                  {Object.entries(popup.content.overrides).map(([device, ov]) => (
+                    <Pane key={device}>{device}: {Object.keys(ov).join(', ') || '(empty)'}</Pane>
                   ))}
-
-                {popup.content.overrides && Object.keys(popup.content.overrides).length > 0 && (
-                  <>
-                    <dt>Overrides</dt>
-                    <dd className="mono small">
-                      {Object.entries(popup.content.overrides).map(([device, ov]) => (
-                        <div key={device}>{device}: {Object.keys(ov).join(', ') || '(empty)'}</div>
-                      ))}
-                    </dd>
-                  </>
-                )}
-              </dl>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                </Pane>
+              </KvRow>
+            )}
+          </Card>
+        </Pane>
+      </Pane>
+    </Pane>
   );
 }
 
@@ -333,56 +356,46 @@ function LegalCard({ legal, canOperate, canCustomLegal, onChange }) {
   const [customText, setCustomText] = useState(legal.custom_text || '');
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <div><h2>Legal / risk warning</h2><p>Cannot be device-overridden or hidden.</p></div>
-      </div>
-      <div className="card-pad">
-        <div className="radio-group">
-          <label className={'radio-option' + (legal.mode === 'auto' ? ' selected' : '')}>
-            {legal.mode === 'auto' && <span className="choice-badge">✓</span>}
-            <input type="radio" name="legal-mode" disabled={!canOperate} checked={legal.mode === 'auto'}
-              onChange={() => onChange({ mode: 'auto' })} />
-            <div>
-              <div className="radio-title">Auto <span className="small muted">(default)</span></div>
-              <div className="radio-desc">Resolved automatically from the registry by broker and country.</div>
-            </div>
-          </label>
+    <Card title="Legal / risk warning" subtitle="Cannot be device-overridden or hidden.">
+      <Pane display="flex" flexDirection="column" gap={4}>
+        <Radio name="legal-mode" disabled={!canOperate} checked={legal.mode === 'auto'}
+          onChange={() => onChange({ mode: 'auto' })}
+          label={
+            <Pane>
+              <Text fontWeight={600} size={300}>Auto <Text color="muted" size={300}>(default)</Text></Text>
+              <Text size={300} color="muted" display="block">Resolved automatically from the registry by broker and country.</Text>
+            </Pane>
+          } />
 
-          <label className={'radio-option' + (legal.mode === 'off' ? ' selected' : '')}>
-            {legal.mode === 'off' && <span className="choice-badge">✓</span>}
-            <input type="radio" name="legal-mode" disabled={!canOperate} checked={legal.mode === 'off'}
-              onChange={() => onChange({ mode: 'off', off_reason: offReason })} />
-            <div style={{ flex: 1 }}>
-              <div className="radio-title">Off <span className="small" style={{ color: 'var(--danger)' }}>⚠ requires reason</span></div>
-              <div className="radio-desc">No legal text shown. Audit-logged.</div>
+        <Radio name="legal-mode" disabled={!canOperate} checked={legal.mode === 'off'}
+          onChange={() => onChange({ mode: 'off', off_reason: offReason })}
+          label={
+            <Pane>
+              <Text fontWeight={600} size={300}>Off <Text color="danger" size={300}>⚠ requires reason</Text></Text>
+              <Text size={300} color="muted" display="block">No legal text shown. Audit-logged.</Text>
               {legal.mode === 'off' && (
-                <input type="text" placeholder="Reason (required)" disabled={!canOperate}
-                  style={{ marginTop: 8, width: '100%', padding: 8, borderRadius: 4, border: '1px solid var(--border)' }}
+                <TextInput marginTop={8} width="100%" placeholder="Reason (required)" disabled={!canOperate}
                   value={offReason}
                   onChange={(e) => { setOffReason(e.target.value); onChange({ mode: 'off', off_reason: e.target.value }); }} />
               )}
-            </div>
-          </label>
+            </Pane>
+          } />
 
-          <label className={'radio-option' + (legal.mode === 'custom' ? ' selected' : '')}>
-            {legal.mode === 'custom' && <span className="choice-badge">✓</span>}
-            <input type="radio" name="legal-mode" disabled={!canOperate || !canCustomLegal} checked={legal.mode === 'custom'}
-              onChange={() => onChange({ mode: 'custom', custom_text: customText })} />
-            <div style={{ flex: 1 }}>
-              <div className="radio-title">Custom <span className="small muted">(restricted — Compliance only)</span></div>
-              <div className="radio-desc">Text supplied directly. No one from Compliance reviewed it unless entered here.</div>
+        <Radio name="legal-mode" disabled={!canOperate || !canCustomLegal} checked={legal.mode === 'custom'}
+          onChange={() => onChange({ mode: 'custom', custom_text: customText })}
+          label={
+            <Pane>
+              <Text fontWeight={600} size={300}>Custom <Text color="muted" size={300}>(restricted — Compliance only)</Text></Text>
+              <Text size={300} color="muted" display="block">Text supplied directly. No one from Compliance reviewed it unless entered here.</Text>
               {legal.mode === 'custom' && (
-                <textarea placeholder="Custom legal text" disabled={!canOperate || !canCustomLegal}
-                  style={{ marginTop: 8, width: '100%' }}
+                <Textarea marginTop={8} width="100%" placeholder="Custom legal text" disabled={!canOperate || !canCustomLegal}
                   value={customText}
                   onChange={(e) => { setCustomText(e.target.value); onChange({ mode: 'custom', custom_text: e.target.value }); }} />
               )}
-            </div>
-          </label>
-        </div>
-        {!canCustomLegal && <p className="field-hint" style={{ marginTop: 10 }}>Custom mode requires the Compliance role.</p>}
-      </div>
-    </div>
+            </Pane>
+          } />
+      </Pane>
+      {!canCustomLegal && <Text size={300} color="muted" display="block" marginTop={10}>Custom mode requires the Compliance role.</Text>}
+    </Card>
   );
 }

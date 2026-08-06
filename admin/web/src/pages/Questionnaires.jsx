@@ -1,35 +1,37 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Pane, Text, Select, Alert } from 'evergreen-ui';
 import { api } from '../lib/api';
+import { Card } from '../components/Card.jsx';
+
+const ACCENT = '#FF4C0B';
 
 function OptionBar({ option, maxPct }) {
   const width = maxPct > 0 ? Math.max(2, (option.pct / maxPct) * 100) : 0;
   return (
-    <div className="row" style={{ gap: 12, marginBottom: 8 }}>
-      <div className="small" style={{ width: 120, flex: 'none' }}>{option.label}</div>
-      <div style={{ flex: 1, background: 'var(--bg-sunken)', borderRadius: 4, overflow: 'hidden', height: 22 }}>
-        <div style={{ width: width + '%', height: '100%', background: 'var(--accent)', borderRadius: 4 }} />
-      </div>
-      <div className="small muted" style={{ width: 90, flex: 'none', textAlign: 'right' }}>
+    <Pane display="flex" alignItems="center" gap={12} marginBottom={8}>
+      <Text size={300} width={120} flexShrink={0}>{option.label}</Text>
+      <Pane flex={1} background="#F1EEEC" borderRadius={4} overflow="hidden" height={22}>
+        <Pane width={width + '%'} height="100%" background={ACCENT} borderRadius={4} />
+      </Pane>
+      <Text size={300} color="muted" width={90} flexShrink={0} textAlign="right">
         {option.count} ({option.pct}%)
-      </div>
-    </div>
+      </Text>
+    </Pane>
   );
 }
 
 function QuestionCard({ question }) {
   const maxPct = Math.max(1, ...question.options.map((o) => o.pct));
   return (
-    <div className="card" style={{ boxShadow: 'none' }}>
-      <div className="card-pad">
-        <div className="row-between" style={{ marginBottom: 12 }}>
-          <strong className="small">{question.text}</strong>
-          <span className="small muted">{question.total_answers} answer{question.total_answers === 1 ? '' : 's'}</span>
-        </div>
-        {question.total_answers === 0
-          ? <p className="small muted">No answers yet.</p>
-          : question.options.map((o) => <OptionBar key={o.value} option={o} maxPct={maxPct} />)}
-      </div>
-    </div>
+    <Pane border="1px solid #E7E2DF" borderRadius={14} padding={16}>
+      <Pane display="flex" justifyContent="space-between" alignItems="center" marginBottom={12}>
+        <Text size={300} fontWeight={600}>{question.text}</Text>
+        <Text size={300} color="muted">{question.total_answers} answer{question.total_answers === 1 ? '' : 's'}</Text>
+      </Pane>
+      {question.total_answers === 0
+        ? <Text size={300} color="muted">No answers yet.</Text>
+        : question.options.map((o) => <OptionBar key={o.value} option={o} maxPct={maxPct} />)}
+    </Pane>
   );
 }
 
@@ -53,30 +55,21 @@ export default function Questionnaires() {
   useEffect(load, [load]);
 
   return (
-    <div className="stack">
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h2>Questionnaires</h2>
-            <p>Answer breakdown per question (§5.4) — every tap is one row in this count, no separate submit step.</p>
-          </div>
-          {popups && popups.length > 0 && (
-            <select value={popupId} onChange={(e) => setPopupId(e.target.value)} style={{ minWidth: 220 }}>
-              {popups.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          )}
-        </div>
+    <Card title="Questionnaires" subtitle="Answer breakdown per question (§5.4) — every tap is one row in this count, no separate submit step."
+      right={popups && popups.length > 0 && (
+        <Select value={popupId} onChange={(e) => setPopupId(e.target.value)} width={230}>
+          {popups.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </Select>
+      )}>
+      {error && <Alert intent="danger" marginBottom={16}>{error}</Alert>}
+      {popups && popups.length === 0 && <Text color="muted">No questionnaire popups yet.</Text>}
+      {popups && popups.length > 0 && !stats && <Text color="muted">Loading…</Text>}
 
-        {error && <div className="alert alert-danger" style={{ margin: 16 }}>{error}</div>}
-        {popups && popups.length === 0 && <div className="empty-state">No questionnaire popups yet.</div>}
-        {popups && popups.length > 0 && !stats && <div className="empty-state">Loading…</div>}
-
-        {stats && (
-          <div className="card-pad stack">
-            {stats.questions.map((q) => <QuestionCard key={q.question_id} question={q} />)}
-          </div>
-        )}
-      </div>
-    </div>
+      {stats && (
+        <Pane display="flex" flexDirection="column" gap={16}>
+          {stats.questions.map((q) => <QuestionCard key={q.question_id} question={q} />)}
+        </Pane>
+      )}
+    </Card>
   );
 }
