@@ -136,12 +136,12 @@
 
   /* ---------------------------------------------------- legal  (§11.3.3) */
 
-  // Returns { text } to render, { text: null } when Compliance has marked the
-  // jurisdiction as not requiring a warning, or null meaning SUPPRESS.
-  //
-  // This deliberately inverts the platform's fail-silent principle. Everywhere
-  // else a failure means no popup and no harm; here a promotional popup shown
-  // without a risk warning is worse than no popup at all.
+  /* Returns { text } to render, { text: null } when Compliance has marked the
+     jurisdiction as not requiring a warning, or null meaning SUPPRESS.
+
+     This deliberately inverts the platform's fail-silent principle. Everywhere
+     else a failure means no popup and no harm; here a promotional popup shown
+     without a risk warning is worse than no popup at all. */
   function resolveLegal(config, popup, entity, country, locale) {
     var mode = (popup.content && popup.content.legal && popup.content.legal.mode) || 'auto';
 
@@ -389,10 +389,43 @@
     host.style.setProperty('--lx-gutter', round4(margin / 2) + 'px');
   }
 
+  /* tokens.css ships font url()s as "__LX_FONT_BASE__<file>.woff2" — a
+     literal placeholder, not a real path. url() inside CSS injected into a
+     shadow root resolves against the HOST PAGE's location, not sdk.js's own,
+     so a plain relative path would 404 on every real embed (arbitrary
+     libertex.com pages, not wherever the SDK itself was loaded from).
+
+     Resolved from settings.configUrl rather than inventing a second way to
+     find "where am I": configUrl is the one location value every embedder
+     is already required to set correctly (§3), and fonts live alongside it
+     (.../dist/config.json -> .../dist/fonts/, .../demo/config.json ->
+     .../demo/fonts/) — so this can't drift out of sync with it. */
+  var fontBase = null;
+  function fontBaseUrl() {
+    if (fontBase !== null) return fontBase;
+    fontBase = '';
+    try {
+      if (settings.configUrl) {
+        var u = new URL(settings.configUrl, location.href);
+        u.pathname = u.pathname.replace(/[^/]*$/, '') + 'fonts/';
+        u.search = '';
+        u.hash = '';
+        fontBase = u.toString();
+      }
+    } catch (e) { /* leave fontBase empty — a font fails closed, not open */ }
+    return fontBase;
+  }
+
+  var resolvedCss = null;
   function attachStyles(shadow) {
-    // Prefer adoptedStyleSheets: it avoids needing `style-src 'unsafe-inline'`
-    // on promo pages that enforce a strict CSP (§10.3).
-    var css = root.__css || '';
+    /* Prefer adoptedStyleSheets: it avoids needing `style-src 'unsafe-inline'`
+       on promo pages that enforce a strict CSP (§10.3). Font-base
+       substitution happens once per page here, not per popup/render — the
+       base can't change mid-session. */
+    if (resolvedCss === null) {
+      resolvedCss = (root.__css || '').split('__LX_FONT_BASE__').join(fontBaseUrl());
+    }
+    var css = resolvedCss;
     if (window.CSSStyleSheet && 'adoptedStyleSheets' in shadow) {
       try {
         var sheet = new CSSStyleSheet();
@@ -649,12 +682,12 @@
             'padding:16px 24px;border:0;border-radius:var(--lx-radius-sm);cursor:pointer;width:100%;box-sizing:border-box;'
   };
 
-  // Theme → the same four custom properties `.lx-theme-*` sets inside the
-  // shadow tree (tokens.css), mirrored here only because slotted content
-  // can't inherit a class-scoped custom property from inside the shadow
-  // tree — it needs these forwarded onto `host` itself instead (§9.5).
-  // Token *names* are duplicated, not color values — tokens.css is still
-  // the only place an actual hex/value is written.
+  /* Theme → the same four custom properties `.lx-theme-*` sets inside the
+     shadow tree (tokens.css), mirrored here only because slotted content
+     can't inherit a class-scoped custom property from inside the shadow
+     tree — it needs these forwarded onto `host` itself instead (§9.5).
+     Token *names* are duplicated, not color values — tokens.css is still
+     the only place an actual hex/value is written. */
   var THEME_VARS = {
     'white-black':     { bg: '--lx-white',      fg: '--lx-black',  ctaBg: '--lx-black',  ctaFg: '--lx-white' },
     'white-orange':    { bg: '--lx-white',      fg: '--lx-orange', ctaBg: '--lx-black',  ctaFg: '--lx-white' },
@@ -1575,12 +1608,12 @@
     if (!container) return;
 
     function proceed(config) {
-      // buildForm() (§9) reads engine.config/engine.ctx directly rather than
-      // via a threaded parameter, since it's also called from show()'s path
-      // where those are always set by boot(). renderInline can run with
-      // boot() disabled (a gallery page, say) and do its own independent
-      // fetch — without this, that fetch's result would never reach
-      // buildForm, and modal_form would always look unresolvable.
+      /* buildForm() (§9) reads engine.config/engine.ctx directly rather than
+         via a threaded parameter, since it's also called from show()'s path
+         where those are always set by boot(). renderInline can run with
+         boot() disabled (a gallery page, say) and do its own independent
+         fetch — without this, that fetch's result would never reach
+         buildForm, and modal_form would always look unresolvable. */
       engine.config = engine.config || config;
       engine.ctx = engine.ctx || buildContext();
 
@@ -1628,12 +1661,12 @@
         built.panel.style.width = '100%';
         shadow.appendChild(built.panel);
       } else {
-        // .lx-panel's own `width:100%` needs a definite containing-block
-        // width to resolve against — a gallery's container is often itself
-        // shrink-to-fit (centered flex cells), so without a fixed width here
-        // the panel and every ancestor collapse to their content's minimum,
-        // wrapping text to one word per line. A comfortable fixed width,
-        // capped by the viewport, is what a static preview card needs.
+        /* .lx-panel's own `width:100%` needs a definite containing-block
+           width to resolve against — a gallery's container is often itself
+           shrink-to-fit (centered flex cells), so without a fixed width here
+           the panel and every ancestor collapse to their content's minimum,
+           wrapping text to one word per line. A comfortable fixed width,
+           capped by the viewport, is what a static preview card needs. */
         built.panel.style.width = '380px';
         built.panel.style.maxWidth = '100%';
         var wrap = el('div', 'lx-backdrop');

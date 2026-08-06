@@ -8,9 +8,64 @@
    STATUS
      ✅ Colour primaries      — confirmed from brand guidelines
      ⚠  Extended spectrum     — names confirmed, hex values pending (Q1b)
-     ❌ Typography            — pending (Q1), system stack used as placeholder
+     ✅ Typography            — Aktiv Grotesk (primary) + JetBrains Mono
+                                 (secondary) landed; real @font-face files
+                                 under fonts/. Optical cap-height offset on
+                                 .lx-heading is still an approximation — the
+                                 precise value wants Aktiv Grotesk's own
+                                 metrics table, not just eyeballing (Q1)
      ⚠  Error colour          — none exists in brand palette (Q1c)
    ========================================================================= */
+
+/* ----------------------------------------------------------------------------
+   Brand fonts (Q1). Self-hosted, not a CDN — matches the rest of the SDK's
+   "one origin, no third-party requests" posture (§10.3's CSP reasoning).
+
+   __LX_FONT_BASE__ is a placeholder, not a real path: this stylesheet gets
+   injected into a closed shadow root (build.js inlines it into dist/sdk.js;
+   the demo harness fetches it directly), and url() inside that injected CSS
+   resolves against the HOST PAGE's location, not this file's — so a plain
+   relative path would 404 on every real embed. sdk.js replaces this token
+   with an absolute URL derived from settings.configUrl (same origin the
+   config and SDK itself already load from) before the CSS is ever attached;
+   see attachStyles()/fontBaseUrl() there. If that substitution can't run for
+   some reason, url('__LX_FONT_BASE__…') just fails to resolve and the
+   font-family fallback stack below takes over — never a hard failure.
+
+   One "Aktiv Grotesk" family, three faces — Extended is a real separate
+   font file, but the *family name* stays one, matched via the font-stretch
+   descriptor/property pair instead of a second family name + variable, so
+   headline selectors just add `font-stretch: expanded` rather than
+   swapping the whole font-family. Regular + Medium (body width) cover
+   every non-headline weight used below; Extended Bold covers every
+   headline. JetBrains Mono: Light + ExtraLight only, per brand guidance —
+   no other mono weight is used anywhere in this file. */
+@font-face {
+  font-family: "Aktiv Grotesk";
+  src: url("__LX_FONT_BASE__AktivGrotesk-Regular.woff2") format("woff2");
+  font-weight: 400;
+}
+@font-face {
+  font-family: "Aktiv Grotesk";
+  src: url("__LX_FONT_BASE__AktivGrotesk-Medium.woff2") format("woff2");
+  font-weight: 500;
+}
+@font-face {
+  font-family: "Aktiv Grotesk";
+  src: url("__LX_FONT_BASE__AktivGrotesk-Extended-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-stretch: expanded;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("__LX_FONT_BASE__JetBrainsMono-Light.woff2") format("woff2");
+  font-weight: 300;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("__LX_FONT_BASE__JetBrainsMono-ExtraLight.woff2") format("woff2");
+  font-weight: 200;
+}
 
 :host {
   /* --- Colour: primary palette (confirmed) ------------------------------ */
@@ -47,15 +102,26 @@
   --lbx-orange:           #F94D08;   /* --brand-tertiary; logo gradient stop */
   --lbx-text:             #161616;   /* --text-primary */
 
-  /* --- Typography (PLACEHOLDER — Q1) ------------------------------------ */
-  /* System stack until the brand type spec arrives. Swapping this to the
-     real family should require no other change. */
-  --lx-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-             Helvetica, Arial, sans-serif;
+  /* --- Typography (Q1) ---------------------------------------------------
+     Two brand typefaces. Headlines use --lx-font at font-stretch:expanded
+     (the Extended width is a real separate font file, matched via the
+     stretch descriptor on its @font-face rather than a second family
+     token) rather than a dedicated variable — everything else uses --lx-
+     font or --lx-font-mono as-is. System stack is the fallback tail on
+     both so a font-load failure degrades gracefully instead of breaking
+     layout. */
+  --lx-font:      "Aktiv Grotesk", -apple-system, BlinkMacSystemFont,
+                   "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --lx-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+                   Consolas, monospace;
 
   --lx-weight-regular:    400;
   --lx-weight-medium:     500;
   --lx-weight-bold:       700;
+  /* JetBrains Mono Light is the default; ExtraLight takes over on dark
+     backgrounds ("wherever Light reads too heavy") via a per-theme override
+     below, same pattern as the focus-outline-colour overrides further down. */
+  --lx-mono-weight:       300;
 
   /* Type scale. Headline size is fluid against popup width per §4.7.2
      ("headlines are set in relation to margins, format size, line length"). */
@@ -66,8 +132,17 @@
   --lx-size-legal:        11px;
   --lx-size-label:        12px;
 
-  --lx-leading-tight:     1.12;
-  --lx-leading-body:      1.45;
+  /* Line height + letter spacing, per content type rather than per element —
+     fewer distinct values, clearer hierarchy. Subheads/body are ranges in
+     the brand guide (110–130%, 130–150%); these pick the midpoint. Tags has
+     no specified leading, only tracking, so nothing to add there. */
+  --lx-leading-headline:  1.10;
+  --lx-leading-subhead:   1.2;
+  --lx-leading-body:      1.4;
+  --lx-tracking-headline: -0.02em;
+  --lx-tracking-subhead:  -0.02em;
+  --lx-tracking-body:     0em;
+  --lx-tracking-tag:      0.08em;
 
   /* --- Layout (§4.7.1) --------------------------------------------------- */
   /* Margin floor: 24px below 768px, 40px above. Decided exception to the
@@ -111,12 +186,12 @@
 
 .lx-theme-white-black   { --bg: var(--lx-white);      --fg: var(--lx-black);  --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
 .lx-theme-white-orange  { --bg: var(--lx-white);      --fg: var(--lx-orange); --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
-.lx-theme-black-white   { --bg: var(--lx-black);      --fg: var(--lx-white);  --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); }
-.lx-theme-black-orange  { --bg: var(--lx-black);      --fg: var(--lx-orange); --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); }
+.lx-theme-black-white   { --bg: var(--lx-black);      --fg: var(--lx-white);  --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); --lx-mono-weight: 200; }
+.lx-theme-black-orange  { --bg: var(--lx-black);      --fg: var(--lx-orange); --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); --lx-mono-weight: 200; }
 .lx-theme-orange-black  { --bg: var(--lx-orange);     --fg: var(--lx-black);  --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
 .lx-theme-orange-white  { --bg: var(--lx-orange);     --fg: var(--lx-white);  --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
 .lx-theme-orange-brown  { --bg: var(--lx-orange);     --fg: var(--lx-brown);  --cta-bg: var(--lx-brown);  --cta-fg: var(--lx-white); }
-.lx-theme-brown-orange  { --bg: var(--lx-brown);      --fg: var(--lx-orange); --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); }
+.lx-theme-brown-orange  { --bg: var(--lx-brown);      --fg: var(--lx-orange); --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); --lx-mono-weight: 200; }
 .lx-theme-neon-black    { --bg: var(--lx-neon);       --fg: var(--lx-black);  --cta-bg: var(--lx-black);  --cta-fg: var(--lx-white); }
 .lx-theme-offwhite-orange { --bg: var(--lx-off-white); --fg: var(--lx-orange); --cta-bg: var(--lx-black); --cta-fg: var(--lx-white); }
 .lx-theme-orange200-black { --bg: var(--lx-orange-200); --fg: var(--lx-black); --cta-bg: var(--lx-black); --cta-fg: var(--lx-white); }
@@ -128,14 +203,14 @@
    these for the common case; reach for the named pairings above only when a
    template specifically needs one of the extended-spectrum combinations. */
 .lx-theme-orange { --bg: var(--lx-orange); --fg: var(--lx-black); --cta-bg: var(--lx-black); --cta-fg: var(--lx-white); }
-.lx-theme-black  { --bg: var(--lx-black);  --fg: var(--lx-white); --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); }
+.lx-theme-black  { --bg: var(--lx-black);  --fg: var(--lx-white); --cta-bg: var(--lx-orange); --cta-fg: var(--lx-white); --lx-mono-weight: 200; }
 .lx-theme-white  { --bg: var(--lx-white);  --fg: var(--lx-black); --cta-bg: var(--lx-black); --cta-fg: var(--lx-white); }
 
 /* LBX identity themes — same three-way shape (accent / dark / light), LBX's
    own colours. Not part of §4.2's approved-pairings table; that table
    governs Libertex content only. */
-.lx-theme-lbx-blue  { --bg: var(--lbx-blue);      --fg: var(--lbx-white); --cta-bg: var(--lbx-black); --cta-fg: var(--lbx-white); }
-.lx-theme-lbx-black { --bg: var(--lbx-black);     --fg: var(--lbx-white); --cta-bg: var(--lbx-blue);  --cta-fg: var(--lbx-white); }
+.lx-theme-lbx-blue  { --bg: var(--lbx-blue);      --fg: var(--lbx-white); --cta-bg: var(--lbx-black); --cta-fg: var(--lbx-white); --lx-mono-weight: 200; }
+.lx-theme-lbx-black { --bg: var(--lbx-black);     --fg: var(--lbx-white); --cta-bg: var(--lbx-blue);  --cta-fg: var(--lbx-white); --lx-mono-weight: 200; }
 .lx-theme-lbx-white { --bg: var(--lbx-white);     --fg: var(--lbx-text);  --cta-bg: var(--lbx-black); --cta-fg: var(--lbx-white); }
 
 /* ============================================================================
@@ -238,28 +313,35 @@
 
 .lx-heading {
   margin: 0 0 calc(var(--lx-space) * 2);
+  font-family: var(--lx-font);
+  font-stretch: expanded;
   font-size: var(--lx-size-h1);
-  line-height: var(--lx-leading-tight);
+  line-height: var(--lx-leading-headline);
   font-weight: var(--lx-weight-bold);
-  letter-spacing: -.02em;
+  letter-spacing: var(--lx-tracking-headline);
   /* Cap-height alignment to the top margin (§4.7.2) is optical, not
-     bounding-box. The offset below is a placeholder — the real value derives
-     from the brand font's metrics and lands with Q1. */
+     bounding-box. The offset below is still an eyeballed approximation —
+     the precise value wants Aktiv Grotesk's own metrics table (cap-height /
+     units-per-em), not just this constant. */
   margin-top: -.08em;
 }
 
 .lx-subheading {
   margin: 0 0 calc(var(--lx-space) * 3);
+  font-family: var(--lx-font);
   font-size: var(--lx-size-h2);
-  line-height: var(--lx-leading-tight);
+  line-height: var(--lx-leading-subhead);
   font-weight: var(--lx-weight-regular);
+  letter-spacing: var(--lx-tracking-subhead);
   opacity: .9;
 }
 
 .lx-body {
   margin: 0 0 calc(var(--lx-space) * 5);
+  font-family: var(--lx-font);
   font-size: var(--lx-size-body);
   line-height: var(--lx-leading-body);
+  letter-spacing: var(--lx-tracking-body);
 }
 
 /* --- Media --------------------------------------------------------------- */
@@ -316,8 +398,11 @@
    Nothing below needs to reach past this slot wrapper. */
 .lx-form-slot { display: block; }
 .lx-form-success {
+  font-family: var(--lx-font);
   font-size: var(--lx-size-body);
   font-weight: var(--lx-weight-medium);
+  line-height: var(--lx-leading-body);
+  letter-spacing: var(--lx-tracking-body);
 }
 
 /* --- Questionnaire (§5.4) -------------------------------------------------
@@ -338,9 +423,12 @@
 .lx-q-dot[data-done="true"] { background: var(--fg); }
 .lx-q-text {
   margin: 0 0 calc(var(--lx-space) * 4);
+  font-family: var(--lx-font);
+  font-stretch: expanded;
   font-size: var(--lx-size-h2);
   font-weight: var(--lx-weight-bold);
-  line-height: var(--lx-leading-tight);
+  line-height: var(--lx-leading-headline);
+  letter-spacing: var(--lx-tracking-headline);
 }
 .lx-q-options {
   display: flex;
@@ -372,10 +460,18 @@
    (§5.4) — same "row of equal buttons" shape, no need for a second set of
    button styles. Everything below is specific to the price/countdown/
    result states. */
+/* A live-look price reads as data, not prose — this is the "occasional
+   headline" case the brand guide calls out for JetBrains Mono explicitly,
+   and tabular-nums plus a monospace face is the standard treatment for a
+   price ticker (it's why every trading UI does this). Still headline-sized
+   and headline-tracked, just in the mono family instead of Aktiv Grotesk. */
 .lx-game-price {
   margin: 0 0 calc(var(--lx-space) * 1);
+  font-family: var(--lx-font-mono);
+  font-weight: var(--lx-mono-weight);
   font-size: var(--lx-size-h1);
-  font-weight: var(--lx-weight-bold);
+  line-height: var(--lx-leading-headline);
+  letter-spacing: var(--lx-tracking-headline);
   font-variant-numeric: tabular-nums;
 }
 /* Persistent, not a footnote — a trading platform showing a number that
@@ -383,10 +479,11 @@
    this stays visible for the whole challenge, not just on first render. */
 .lx-game-disclaimer {
   margin: 0 0 calc(var(--lx-space) * 4);
+  font-family: var(--lx-font-mono);
+  font-weight: var(--lx-mono-weight);
   font-size: 10px;
-  font-weight: var(--lx-weight-medium);
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: var(--lx-tracking-tag);
   opacity: .7;
 }
 .lx-game-direction-row {
@@ -432,13 +529,21 @@
   width: 100%;
   transition: width linear;
 }
+/* Content here is a variable-length sentence (content.win_body/lose_body,
+   or the "Correct call!"/"Not quite this time." defaults) — body copy in a
+   pill, not a short structural label, so this gets the body treatment
+   (Aktiv Grotesk, not the mono/tag family .lx-legal and .lx-game-disclaimer
+   use) even though it visually reads as a badge. */
 .lx-game-result-badge {
   display: inline-block;
   margin: 0 0 calc(var(--lx-space) * 3);
   padding: calc(var(--lx-space) * 1) calc(var(--lx-space) * 3);
   border-radius: 999px;
+  font-family: var(--lx-font);
   font-size: var(--lx-size-label);
-  font-weight: var(--lx-weight-bold);
+  font-weight: var(--lx-weight-medium);
+  line-height: var(--lx-leading-body);
+  letter-spacing: var(--lx-tracking-body);
   background: color-mix(in srgb, var(--fg) 12%, transparent);
 }
 .lx-game-result-prices {
@@ -458,9 +563,11 @@
   margin: calc(var(--lx-space) * 5) 0 0;
   padding-top: calc(var(--lx-space) * 3);
   border-top: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
+  font-family: var(--lx-font-mono);
+  font-weight: var(--lx-mono-weight);
   font-size: var(--lx-size-legal);
   line-height: 1.35;
-  letter-spacing: .04em;
+  letter-spacing: var(--lx-tracking-tag);
   text-transform: uppercase;
   opacity: .85;
 }

@@ -78,6 +78,16 @@ if (fs.existsSync(BUILT_SDK_PATH)) {
   });
 }
 
+// Brand fonts (Q1) — build.js copies repo-root fonts/ here as part of
+// `npm run build`. sdk.js resolves tokens.css's __LX_FONT_BASE__ placeholder
+// against settings.configUrl, which for every real embed points at
+// /dist/config.json — so fonts have to live at this exact sibling path for
+// that resolution to land anywhere real.
+const BUILT_FONTS_DIR = path.join(__dirname, '..', '..', 'dist', 'fonts');
+if (fs.existsSync(BUILT_FONTS_DIR)) {
+  app.use('/dist/fonts', express.static(BUILT_FONTS_DIR));
+}
+
 // Deployment (e.g. Railway) runs this as the single web process, so it also
 // serves the built admin UI and the root-level SDK test harness — locally
 // these are served by separate dev servers instead (admin/web's Vite dev
@@ -103,6 +113,12 @@ DEMO_FILES.forEach(function (file) {
     res.sendFile(path.join(REPO_ROOT, file));
   });
 });
+
+// /demo/sdk.js is the raw source file (unlike /dist/sdk.js above), so its
+// tokens.css comes from the demo pages fetching /demo/tokens.css directly
+// rather than a build-time inline — same reason this points straight at the
+// repo-root fonts/ source instead of the dist/fonts/ build output.
+app.use('/demo/fonts', express.static(path.join(REPO_ROOT, 'fonts')));
 
 app.get('/demo/config.json', function (req, res) {
   res.sendFile(publisher.CONFIG_PATH);

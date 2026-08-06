@@ -13,6 +13,23 @@ const src = __dirname;
 const dist = path.join(__dirname, 'dist');
 fs.mkdirSync(dist, { recursive: true });
 
+// Fonts aren't inlined (§8.1's budget is for sdk.js itself — a few hundred
+// KB of woff2 would blow it instantly) — copied alongside instead, so
+// dist/fonts/ sits next to dist/sdk.js the same way admin/server later
+// serves /dist/fonts next to /dist/sdk.js. tokens.css's __LX_FONT_BASE__
+// placeholder is what actually points at this directory at runtime (see
+// sdk.js's fontBaseUrl()), not anything build.js does here.
+const fontsDir = path.join(src, 'fonts');
+const distFontsDir = path.join(dist, 'fonts');
+if (fs.existsSync(fontsDir)) {
+  fs.mkdirSync(distFontsDir, { recursive: true });
+  fs.readdirSync(fontsDir).forEach(function (file) {
+    if (!/\.woff2?$/.test(file)) return;
+    fs.copyFileSync(path.join(fontsDir, file), path.join(distFontsDir, file));
+  });
+  console.log('copied ' + fs.readdirSync(distFontsDir).length + ' font file(s) to dist/fonts/');
+}
+
 const css = fs.readFileSync(path.join(src, 'tokens.css'), 'utf8');
 const sdk = fs.readFileSync(path.join(src, 'sdk.js'), 'utf8');
 

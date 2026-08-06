@@ -415,9 +415,23 @@ the comments around `buildForm()`.
    demo traffic). A `modal_form` popup on an `fcil`/`bvi` domain will still
    correctly fail-safe-suppress until Compliance provides real wording for
    that entity.
-5. **Typography (§4.3), extended color spectrum hex values (§4.2 Q1b), tone
-   of voice (§4.5)** are all still placeholders per the spec's open
-   questions — cosmetic, swap-in-place once Design responds. **The logo
+5. **Typography (§4.3) is resolved.** Aktiv Grotesk (primary — Regular/
+   Medium body width, Bold Extended width for headlines) + JetBrains Mono
+   (secondary — Light default, ExtraLight on dark-background themes, for
+   legal/tags/technical microcopy) are real `@font-face`s under `fonts/`,
+   applied per content type in `tokens.css` (line-height/letter-spacing per
+   the brand table: headlines 110%/-2%, subheads ~120%/-2%, body ~140%/0%,
+   tags 8%). Self-hosted, not a CDN — `sdk.js`'s `fontBaseUrl()` resolves
+   the actual origin from `settings.configUrl` at runtime and substitutes
+   it into tokens.css's `__LX_FONT_BASE__` placeholder, since a shadow-root-
+   injected stylesheet's relative `url()`s would otherwise resolve against
+   the *host page*, not wherever the SDK itself was loaded from. One open
+   item: **Aktiv Grotesk's zip had no license/EULA file** — it's a Dalton
+   Maag commercial typeface, and self-hosted web embedding is typically a
+   separate license tier from desktop/print use. Worth confirming Libertex's
+   license actually covers this before treating it as fully settled.
+   Extended color spectrum hex values (§4.2 Q1b) and tone of voice (§4.5)
+   are still placeholders per the spec's open questions. **The logo
    (§4.4) is resolved** — `buildBrandLockup()` in `sdk.js` now uses the real
    Libertex logo/symbol SVG path data, supplied directly as files, not a
    hand-traced approximation. The wordmark's actual custom typeface still
