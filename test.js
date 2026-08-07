@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Phase 0 test suite.
 
-   Priority order matches spec §15.3: the compliance fail-safe and the safe
+   Priority order matches spec §16.3: the compliance fail-safe and the safe
    rendering path matter more than anything else here, because those are the
    two failures with consequences beyond a broken popup. */
 
@@ -22,14 +22,18 @@ function check(name, cond, detail) {
 
 function group(name) { console.log(`\n${name}`); }
 
-/* Boot the SDK inside a jsdom page at a given hostname with a given config. */
-function boot({ url = 'https://libertex.com/promo/summer', config = CONFIG, dataLayer = {} } = {}) {
+/* Boot the SDK inside a jsdom page at a given hostname with a given config.
+   localStorageSeed pre-populates lx_popup_state_v1 before the SDK's own
+   boot() runs, so a test can simulate "this is a returning visitor" rather
+   than only ever a fresh one — needed for the A/B persistence check below. */
+function boot({ url = 'https://libertex.com/promo/summer', config = CONFIG, dataLayer = {}, localStorageSeed = null } = {}) {
   const dom = new JSDOM(`<!DOCTYPE html><html><body><div style="height:4000px"></div></body></html>`, {
     url,
     pretendToBeVisual: true,
     runScripts: 'outside-only'
   });
   const win = dom.window;
+  if (localStorageSeed) win.localStorage.setItem('lx_popup_state_v1', JSON.stringify(localStorageSeed));
 
   win.LxPopup = {
     config: { configUrl: 'https://cdn.test/config.json', collectUrl: null, dataLayer, env: 'test' }
@@ -233,6 +237,77 @@ function rendered(win) {
     win.LxPopup.show('promo-summer-2026');
     await settle(win);
     check('explicit show() is not blocked by caps (by design)', rendered(win) === 2);
+  }
+
+  /* ------------------------------------------------------------------ */
+  group('A/B testing (§15)');
+  {
+    function abConfig(weightA, weightB) {
+      const base = {
+        template: 'modal', status: 'live', priority: 50, starts_at: null, ends_at: null,
+        devices: ['desktop', 'tablet', 'mobile'], trigger: { type: 'immediate' },
+        frequency: {}, targeting: [[{ d: 'path', op: 'starts_with', v: '/' }]],
+        content: { theme: 'white', heading: 'x', legal: { mode: 'off', off_reason: 'test' } }
+      };
+      return Object.assign({}, CONFIG, {
+        popups: [
+          Object.assign({}, base, { id: 'ab-a', experiment: { group: 'g1', variant: 'A', weight: weightA } }),
+          Object.assign({}, base, { id: 'ab-b', experiment: { group: 'g1', variant: 'B', weight: weightB } })
+        ]
+      });
+    }
+
+    {
+      const { win } = boot({ url: 'https://libertex.com/', config: abConfig(50, 50) });
+      await settle(win);
+      const d = win.LxPopup._diagnostics();
+      check('exactly one variant active, never both', d.active.length === 1, JSON.stringify(d.active));
+      check('the active one is a real group member', ['ab-a', 'ab-b'].includes(d.active[0]));
+    }
+
+    {
+      // Same visitor returning — pre-seed the exact state a first visit
+      // would have written, confirm the second boot reuses it rather than
+      // re-rolling (a test that reshuffles per pageview isn't a test).
+      const { win: win1 } = boot({ url: 'https://libertex.com/', config: abConfig(50, 50) });
+      await settle(win1);
+      const firstPick = win1.LxPopup._diagnostics().active[0];
+      const state = JSON.parse(win1.localStorage.getItem('lx_popup_state_v1'));
+      check('assignment persisted to storage', !!(state && state.exp && state.exp.g1));
+
+      const { win: win2 } = boot({ url: 'https://libertex.com/', config: abConfig(50, 50), localStorageSeed: state });
+      await settle(win2);
+      const secondPick = win2.LxPopup._diagnostics().active[0];
+      check('returning visitor sees the same variant', secondPick === firstPick, `${firstPick} → ${secondPick}`);
+    }
+
+    {
+      // Heavily skewed weights, many fresh (unseeded) visitors — the split
+      // should trend hard toward A without ever making B literally
+      // impossible. Wide tolerance on purpose: this asserts the mechanism
+      // isn't broken (e.g. always picking one, or crashing), not an exact
+      // statistical bound — that would make the suite flaky by design.
+      let aCount = 0;
+      const N = 40;
+      for (let i = 0; i < N; i++) {
+        const { win } = boot({ url: 'https://libertex.com/', config: abConfig(90, 10) });
+        await settle(win);
+        if (win.LxPopup._diagnostics().active[0] === 'ab-a') aCount++;
+      }
+      check(`weighted split trends toward the heavier variant (A won ${aCount}/${N}, expect >20)`, aCount > 20);
+    }
+
+    {
+      // Once a group is down to one live popup (the loser paused after a
+      // real resolution — admin/server/lib/experiments.js), there's
+      // nothing to pick between; the survivor just behaves like any
+      // ordinary popup.
+      const cfg = abConfig(50, 50);
+      cfg.popups[1].status = 'paused';
+      const { win } = boot({ url: 'https://libertex.com/', config: cfg });
+      await settle(win);
+      check('a resolved group (one live variant) passes through untouched', win.LxPopup._diagnostics().active[0] === 'ab-a');
+    }
   }
 
   /* ------------------------------------------------------------------ */

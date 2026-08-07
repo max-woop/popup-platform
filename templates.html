@@ -60,7 +60,7 @@
   <div>
     <h1>Popup templates — style guide</h1>
     <p>
-      All six templates (§5) rendered through the real SDK — same
+      All seven templates (§5) rendered through the real SDK — same
       <code>tokens.css</code>, same theme classes, same legal fail-safe (§11.3.3) —
       not hand-drawn mockups. See <a href="./index.html">the interactive harness</a>
       for triggered, full-viewport behaviour.
@@ -143,6 +143,15 @@
       deliberate exception in this whole SDK, so the widget's own <code>document.querySelector</code>
       can find and bind to it.
     </p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>modal_form_media <span style="color:var(--muted);font-weight:400">— registration, with an image panel</span></h2>
+      <p>Same llLanding-embedded form as <code>modal_form</code> · theme <code>white</code> · 16:9 desktop / 4:3 mobile media slot above the heading</p>
+    </div>
+    <div class="stage" id="slot-form-media-stage"><div id="slot-modal-form-media"></div></div>
+    <p class="note">Mirrors <code>modal_media</code>'s relationship to <code>modal</code>: identical content schema to <code>modal_form</code>, one field added (<code>image_url</code>/<code>image_alt</code>). Same registration widget, same fail-safe (no <code>registration_domains</code> entry for the host ⇒ suppressed), just with a hero image above the heading.</p>
   </div>
 
   <div class="card">
@@ -353,6 +362,22 @@
         template: 'modal_form',
         content: {
           theme: 'offwhite-orange',
+          heading: 'Open a live account',
+          body: 'Trade over 300 instruments from one account.',
+          cta_label: 'Create account',
+          legal: { mode: 'auto' }
+        }
+      }
+    },
+    {
+      slot: 'slot-modal-form-media',
+      popup: {
+        id: 'gallery-modal-form-media',
+        template: 'modal_form_media',
+        content: {
+          theme: 'white',
+          image_url: 'https://picsum.photos/seed/libertex-form-gallery/800/450',
+          image_alt: 'Placeholder hero image (stand-in for a CDN-hosted campaign photo)',
           heading: 'Open a live account',
           body: 'Trade over 300 instruments from one account.',
           cta_label: 'Create account',

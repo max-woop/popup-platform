@@ -41,7 +41,7 @@ index.html                interactive test harness — manual triggers,
                           diagnostics, legal fail-safe test, collected-events
                           panel. Real popup triggers (delay/scroll/etc) are
                           live here.
-templates.html            style-guide gallery — all six templates rendered
+templates.html            style-guide gallery — all seven templates rendered
                           side by side via a preview-only SDK API
                           (renderInline()), not full-viewport triggers,
                           plus a square-shaped `modal` card (real logo,
@@ -224,13 +224,15 @@ defaults to local dev origins only.
   `POST /api/entity-domains` (compliance-only, mirrors the
   `registration_domains` pattern exactly) plus a small add-mapping form on
   the Legal texts screen close that gap.
-- **All six templates render via the SDK** — `banner`, `modal`,
-  `modal_media`, `modal_form`, `questionnaire`, `gamification` all have real
-  `sdk.js` builders (`buildBanner`/`buildPanel`/`buildForm`/
-  `buildQuestionnaire`/`buildGamification`), not mockups. `templates.html`
-  proves this by rendering all of them through the real code path, and the
-  admin app's **Templates** nav item (iframes that same page) puts the
-  gallery one click away from Popups/Targeting/Statistics.
+- **All seven templates render via the SDK** — `banner`, `modal`,
+  `modal_media`, `modal_form`, `modal_form_media`, `questionnaire`,
+  `gamification` all have real `sdk.js` builders (`buildBanner`/
+  `buildPanel`/`buildForm`/`buildQuestionnaire`/`buildGamification` —
+  `modal_form_media` shares `buildForm` with `modal_form`, same as
+  `modal_media` shares `buildPanel` with `modal`), not mockups.
+  `templates.html` proves this by rendering all of them through the real
+  code path, and the admin app's **Templates** nav item (iframes that same
+  page) puts the gallery one click away from Popups/Targeting/Statistics.
 - **`questionnaire`** (§5.4) — 1–3 button-only questions, one at a time, no
   free-text input anywhere. Every tap fires `questionnaire_answer`
   immediately (no submit step); an optional `completion` message + CTA
@@ -456,7 +458,7 @@ the comments around `buildForm()`.
 ## Where the spec changed from its original version
 
 `popup-platform-spec.md` §9 (Registration form), §10.1 (threat table),
-§12 (admin screens), §14.1 (events table), §16 (phases), §17 (open
+§12 (admin screens), §14.1 (events table), §17 (phases), §18 (open
 questions), and the Appendix (`config.json` shape) were all rewritten this
 session once real production form code revealed the original §9 design
 (a self-built lead-capture-and-forward backend) doesn't match reality. Read

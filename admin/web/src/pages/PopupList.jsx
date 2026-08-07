@@ -126,6 +126,8 @@ export default function PopupList() {
           <Table.Head>
             <Table.TextHeaderCell>Name</Table.TextHeaderCell>
             <Table.TextHeaderCell>Template</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={130} flexGrow={0}>Offer</Table.TextHeaderCell>
+            <Table.TextHeaderCell flexBasis={110} flexGrow={0}>Broker</Table.TextHeaderCell>
             <Table.TextHeaderCell>Status</Table.TextHeaderCell>
             <Table.TextHeaderCell>Schedule</Table.TextHeaderCell>
             <Table.TextHeaderCell>Trigger</Table.TextHeaderCell>
@@ -139,6 +141,12 @@ export default function PopupList() {
                 <Table.Row>
                   <Table.TextCell><Link to={'/popups/' + p.id}>{p.name}</Link></Table.TextCell>
                   <Table.TextCell><Text fontFamily="mono" size={300}>{p.template}</Text></Table.TextCell>
+                  <Table.TextCell flexBasis={130} flexGrow={0}>
+                    <Text size={300} color={p.offer ? undefined : 'muted'}>{p.offer || '—'}</Text>
+                  </Table.TextCell>
+                  <Table.TextCell flexBasis={110} flexGrow={0}>
+                    <Text size={300} color={p.broker ? undefined : 'muted'}>{p.broker || '—'}</Text>
+                  </Table.TextCell>
                   <Table.Cell><StatusBadge status={p.status} /></Table.Cell>
                   <Table.TextCell>{formatSchedule(p)}</Table.TextCell>
                   <Table.TextCell>{triggerLabel(p.trigger)}</Table.TextCell>

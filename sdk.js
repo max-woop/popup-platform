@@ -1,7 +1,7 @@
 /* ============================================================================
    Libertex Popup Platform — SDK (Phase 0 spike)
 
-   Purpose of this spike (spec §16): validate the two integration risks that
+   Purpose of this spike (spec §17): validate the two integration risks that
    could force a design change — the Tealium loading path, and CSP
    compatibility on promo pages.
 
@@ -125,9 +125,9 @@
 
   /* --------------------------------------------------- entity  (§11.3.2) */
 
-  // Exact hostname match only. A suffix check (endsWith) would match
-  // "libertex.com.evil.example" and would silently mis-assign any future
-  // subdomain — either failure serves the wrong regulator's warning.
+  /* Exact hostname match only. A suffix check (endsWith) would match
+     "libertex.com.evil.example" and would silently mis-assign any future
+     subdomain — either failure serves the wrong regulator's warning. */
   function resolveEntity(config, hostname) {
     var map = (config && config.entity_domains) || {};
     var host = String(hostname || '').toLowerCase().replace(/^www\./, '').split(':')[0];
@@ -169,10 +169,10 @@
 
   /* ------------------------------------------------ registration (§9) */
 
-  // Same exact-hostname pattern as resolveEntity (§11.3.2/§9.3) — the
-  // widget's script/apiKey/field-set are looked up by domain, never typed
-  // per popup. An unmapped host means no registration path exists here, so
-  // modal_form must not render (§9.3's fail-safe).
+  /* Same exact-hostname pattern as resolveEntity (§11.3.2/§9.3) — the
+     widget's script/apiKey/field-set are looked up by domain, never typed
+     per popup. An unmapped host means no registration path exists here, so
+     modal_form must not render (§9.3's fail-safe). */
   function resolveRegistrationConfig(config, hostname) {
     var map = (config && config.registration_domains) || {};
     var host = String(hostname || '').toLowerCase().replace(/^www\./, '').split(':')[0];
@@ -187,10 +187,10 @@
     return bucket[locale] || bucket.en || null;
   }
 
-  // Builds { privacy: <a>, ... } text interleaved with real links from a
-  // template string + a typed link map — never innerHTML (§10.2). An
-  // unrecognised {placeholder} renders literally rather than vanishing, so
-  // a registry typo is visible instead of silently swallowing a legal link.
+  /* Builds { privacy: <a>, ... } text interleaved with real links from a
+     template string + a typed link map — never innerHTML (§10.2). An
+     unrecognised {placeholder} renders literally rather than vanishing, so
+     a registry typo is visible instead of silently swallowing a legal link. */
   function buildConsentLabel(entry) {
     var span = el('span');
     var template = entry.text_template || '';
@@ -205,9 +205,9 @@
         var href = safeUrl(link.url);
         if (href) { a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
         a.textContent = link.label || match[1];
-        // This label is slotted light-DOM content (§9.5) — same inline-
-        // style reasoning as FORM_STYLE below; a class here would need a
-        // shadow-tree selector that can't reach a slotted descendant.
+        /* This label is slotted light-DOM content (§9.5) — same inline-
+           style reasoning as FORM_STYLE below; a class here would need a
+           shadow-tree selector that can't reach a slotted descendant. */
         a.style.cssText = 'color:inherit;text-decoration:underline;';
         span.appendChild(a);
       } else {
@@ -623,10 +623,10 @@
 
   /* ------------------------------------------------------- form (§9) */
 
-  // §9.1 — modal_form embeds the existing llLanding registration widget
-  // already live on production Libertex domains; this platform does not
-  // capture, validate, or forward the fields below. It only renders brand
-  // chrome around them and finds out whether registrationCallback fired.
+  /* §9.1 — modal_form embeds the existing llLanding registration widget
+     already live on production Libertex domains; this platform does not
+     capture, validate, or forward the fields below. It only renders brand
+     chrome around them and finds out whether registrationCallback fired. */
 
   var scriptLoadPromises = {};
   function loadScriptOnce(src) {
@@ -765,6 +765,21 @@
 
     var wrap = el('div', 'lx-content');
 
+    /* Only modal_form_media's schema declares image_url — modal_form itself
+       never has one, so this is dead code for that template, same "shared
+       builder, schema controls what's populated" pattern buildPanel() uses
+       for modal vs. modal_media. */
+    if (content.image_url) {
+      var formImgSrc = safeUrl(content.image_url);
+      if (formImgSrc) {
+        var formImg = el('img', 'lx-media');
+        formImg.src = formImgSrc;
+        formImg.alt = content.image_alt || '';
+        formImg.loading = 'lazy';
+        wrap.appendChild(formImg);
+      }
+    }
+
     var h = el('h2', 'lx-heading');
     h.id = headingId;
     h.textContent = content.heading || '';
@@ -776,10 +791,10 @@
       wrap.appendChild(b);
     }
 
-    // §9.5 — the real <form> is a light DOM child of `host`, not part of
-    // this shadow tree. It's projected into position here via <slot> so
-    // llLanding's document.querySelector can still find and bind to it —
-    // shadow roots are otherwise invisible to that kind of lookup.
+    /* §9.5 — the real <form> is a light DOM child of `host`, not part of
+       this shadow tree. It's projected into position here via <slot> so
+       llLanding's document.querySelector can still find and bind to it —
+       shadow roots are otherwise invisible to that kind of lookup. */
     var formSlotWrap = el('div', 'lx-form-slot');
     formSlotWrap.appendChild(document.createElement('slot'));
     wrap.appendChild(formSlotWrap);
@@ -832,9 +847,9 @@
     consentRow.appendChild(buildConsentLabel(consent));
     form.appendChild(consentRow);
 
-    // No CAPTCHA markup here — that's llLanding's own concern. Its script
-    // inserts whatever challenge it needs once it binds to this form; the
-    // exact markup is version/domain-specific and isn't ours to fake.
+    /* No CAPTCHA markup here — that's llLanding's own concern. Its script
+       inserts whatever challenge it needs once it binds to this form; the
+       exact markup is version/domain-specific and isn't ours to fake. */
 
     var submit = el('input', 'lx-cta om-trigger-conversion');
     submit.type = 'submit';
@@ -844,10 +859,10 @@
     form.appendChild(submit);
 
     function showSuccess() {
-      // formSlotWrap lives in the shadow tree (unlike the form itself), so
-      // it can be styled/replaced normally — only the <form> was the §9.5
-      // exception. The light-DOM form node still exists after this, just no
-      // longer assigned to a slot, so it stops rendering.
+      /* formSlotWrap lives in the shadow tree (unlike the form itself), so
+         it can be styled/replaced normally — only the <form> was the §9.5
+         exception. The light-DOM form node still exists after this, just no
+         longer assigned to a slot, so it stops rendering. */
       formSlotWrap.textContent = '';
       var msg = el('p', 'lx-form-success');
       msg.setAttribute('role', 'status');
@@ -883,9 +898,9 @@
 
   /* ---------------------------------------------- questionnaire (§5.4) */
 
-  // Button-only answers, one question at a time. No free-text input exists
-  // to validate or sanitize — every tap is already a complete, final answer,
-  // so there's no "submit" step and no payload that could ever be markup.
+  /* Button-only answers, one question at a time. No free-text input exists
+     to validate or sanitize — every tap is already a complete, final answer,
+     so there's no "submit" step and no payload that could ever be markup. */
   function buildQuestionnaire(popup, content, legal, headingId) {
     var panel = el('div', 'lx-panel lx-theme-' + (content.theme || 'white-black'));
     panel.setAttribute('role', 'dialog');
@@ -1093,6 +1108,12 @@
       disclaimer.textContent = 'Simulated for this challenge — not a live quote';
       stage.appendChild(disclaimer);
 
+      /* Fixed now, not inside the setTimeout below, so the chart animates
+         toward the exact number renderResult() reveals — a line that visibly
+         went one way while the text announces the other would look broken. */
+      var closePrice = startPrice * (1 + (Math.random() * 2 - 1) * volatilityPct);
+      stage.appendChild(buildChart(startPrice, closePrice));
+
       var countdown = el('p', 'lx-game-countdown');
       countdown.textContent = 'You predicted ' + guess + '. Revealing shortly…';
       stage.appendChild(countdown);
@@ -1102,14 +1123,39 @@
       fill.style.transitionDuration = durationMs + 'ms';
       track_.appendChild(fill);
       stage.appendChild(track_);
-      // Kick the transition off on the next frame so it actually animates
-      // from 100% down to 0, rather than snapping straight to the end state.
-      requestAnimationFrame(function () { fill.style.width = '0%'; });
+      var chartLine = stage.querySelector('.lx-game-chart-line');
+      chartLine.style.transitionDuration = durationMs + 'ms';
+      // Kick both transitions off on the next frame so they actually animate
+      // from their start state, rather than snapping straight to the end.
+      requestAnimationFrame(function () { fill.style.width = '0%'; chartLine.style.strokeDashoffset = '0'; });
 
-      setTimeout(function () {
-        var closePrice = startPrice * (1 + (Math.random() * 2 - 1) * volatilityPct);
-        renderResult(asset, guess, startPrice, closePrice);
-      }, durationMs);
+      setTimeout(function () { renderResult(asset, guess, startPrice, closePrice); }, durationMs);
+    }
+
+    /* A short random-walk from start to close (never a straight diagonal),
+       revealed via an animated stroke-dashoffset kicked off by the caller —
+       same "set final state now, animate the reveal on next frame" pattern
+       renderCountdown already uses for the progress bar above. */
+    function buildChart(startPrice, closePrice) {
+      var delta = closePrice - startPrice;
+      var noise = (Math.abs(delta) || startPrice * volatilityPct || 1) * .6;
+      var pts = [startPrice];
+      for (var i = 1; i < 5; i++) pts.push(startPrice + delta * (i / 5) + (Math.random() - .5) * noise);
+      pts.push(closePrice);
+      var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts);
+      var poly = pts.map(function (v, i) {
+        return (i * 100 / (pts.length - 1)).toFixed(1) + ',' + (36 - (v - lo) / ((hi - lo) || 1) * 32).toFixed(1);
+      }).join(' ');
+      var chartSvg = document.createElementNS(SVG_NS, 'svg');
+      chartSvg.setAttribute('viewBox', '0 0 100 40');
+      chartSvg.setAttribute('preserveAspectRatio', 'none');
+      chartSvg.setAttribute('class', 'lx-game-chart');
+      chartSvg.setAttribute('aria-hidden', 'true');
+      var chartLine = document.createElementNS(SVG_NS, 'polyline');
+      chartLine.setAttribute('points', poly);
+      chartLine.setAttribute('class', 'lx-game-chart-line');
+      chartSvg.appendChild(chartLine);
+      return chartSvg;
     }
 
     function renderDirectionPicker(asset) {
@@ -1181,9 +1227,9 @@
 
   /* ------------------------------------------------ focus trap (§8.4) */
 
-  // `extraRoot` covers §9.5's exception: modal_form's actual <form> is a
-  // light-DOM sibling of this shadow tree, not a descendant of `container`,
-  // so container.querySelectorAll alone would miss every field in it.
+  /* `extraRoot` covers §9.5's exception: modal_form's actual <form> is a
+     light-DOM sibling of this shadow tree, not a descendant of `container`,
+     so container.querySelectorAll alone would miss every field in it. */
   function trapFocus(container, onEscape, extraRoot) {
     var previous = document.activeElement;
     var selector = 'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
@@ -1195,10 +1241,10 @@
       return list;
     }
 
-    // document.activeElement is retargeted to the shadow host itself when
-    // focus sits inside a *closed* shadow root — ask the root directly in
-    // that case. Focus on the slotted light-DOM form isn't retargeted, so
-    // document.activeElement already reports it correctly.
+    /* document.activeElement is retargeted to the shadow host itself when
+       focus sits inside a *closed* shadow root — ask the root directly in
+       that case. Focus on the slotted light-DOM form isn't retargeted, so
+       document.activeElement already reports it correctly. */
     function activeElement() {
       var a = document.activeElement;
       return a === shadowHost ? container.getRootNode().activeElement : a;
@@ -1266,7 +1312,7 @@
   // place deciding which builder owns a given template.
   function buildForTemplate(popup, content, legal, headingId) {
     if (popup.template === 'banner') return buildBanner(popup, content, legal, headingId);
-    if (popup.template === 'modal_form') return buildForm(popup, content, legal, headingId);
+    if (popup.template === 'modal_form' || popup.template === 'modal_form_media') return buildForm(popup, content, legal, headingId);
     if (popup.template === 'questionnaire') return buildQuestionnaire(popup, content, legal, headingId);
     if (popup.template === 'gamification') return buildGamification(popup, content, legal, headingId);
     return buildPanel(popup, content, legal, headingId);
@@ -1301,10 +1347,10 @@
     var isBanner = popup.template === 'banner';
     var built = buildForTemplate(popup, content, legal, headingId);
 
-    // buildForm returns null when no registration_domains/consent_texts
-    // entry resolves (§9.3/§9.4) — same fail-safe shape as the legal check
-    // above: a registration popup with nothing to register against is
-    // worse than no popup.
+    /* buildForm returns null when no registration_domains/consent_texts
+       entry resolves (§9.3/§9.4) — same fail-safe shape as the legal check
+       above: a registration popup with nothing to register against is
+       worse than no popup. */
     if (!built) {
       if (host.parentNode) host.parentNode.removeChild(host);
       return false;
@@ -1320,10 +1366,10 @@
       shadow.appendChild(container);
     }
 
-    // §9.5 — the registration form is the one light-DOM exception to this
-    // popup's otherwise full Shadow DOM isolation. It's a real child of
-    // `host`, projected into the shadow tree's <slot>, so llLanding's own
-    // document.querySelector can find and bind to it.
+    /* §9.5 — the registration form is the one light-DOM exception to this
+       popup's otherwise full Shadow DOM isolation. It's a real child of
+       `host`, projected into the shadow tree's <slot>, so llLanding's own
+       document.querySelector can find and bind to it. */
     if (built.lightDomForm) {
       host.appendChild(built.lightDomForm);
       built.mountRegistration(host);
@@ -1492,8 +1538,47 @@
 
   /* -------------------------------------------------------- lifecycle */
 
+  /* A/B testing (§15) — popups sharing content.experiment.group compete
+     for exactly one slot, not several. First eligible visit weight-picks
+     one (experiment.weight, default even split) and persists the pick in
+     engine.state so a returning visitor keeps seeing the same variant —
+     re-randomizing per pageview would make the test meaningless. A group
+     already down to one live variant (the rest paused once
+     admin/server/lib/experiments.js declares a winner) passes through
+     untouched — there's nothing left to pick between. */
+  function pickVariant(candidates) {
+    var groups = {};
+    candidates.forEach(function (p) {
+      var g = p.experiment && p.experiment.group;
+      if (g) (groups[g] = groups[g] || []).push(p);
+    });
+    var chosen = {};
+    Object.keys(groups).forEach(function (g) {
+      var vs = groups[g];
+      if (vs.length < 2) return;
+      engine.state.exp = engine.state.exp || {};
+      var pick = engine.state.exp[g];
+      if (!pick || !vs.some(function (v) { return v.id === pick; })) {
+        var total = vs.reduce(function (s, v) { return s + (v.experiment.weight || 50); }, 0);
+        var r = Math.random() * total, acc = 0;
+        pick = vs[vs.length - 1].id;
+        for (var i = 0; i < vs.length; i++) {
+          acc += vs[i].experiment.weight || 50;
+          if (r <= acc) { pick = vs[i].id; break; }
+        }
+        engine.state.exp[g] = pick;
+        writeState(engine.state);
+      }
+      chosen[g] = pick;
+    });
+    return candidates.filter(function (p) {
+      var g = p.experiment && p.experiment.group;
+      return !g || groups[g].length < 2 || p.id === chosen[g];
+    });
+  }
+
   function selectAndArm() {
-    var candidates = (engine.config.popups || []).filter(eligible);
+    var candidates = pickVariant((engine.config.popups || []).filter(eligible));
 
     // Priority ascending, then newest start date (§6.3).
     candidates.sort(function (a, b) {
@@ -1702,6 +1787,7 @@
       configLoaded: !!engine.config,
       popupCount: engine.config ? engine.config.popups.length : 0,
       eligible: engine.config ? engine.config.popups.filter(eligible).map(function (p) { return p.id; }) : [],
+      active: engine.active.map(function (i) { return i.popup.id; }),
       session: engine.session
     };
   }, 'diagnostics');
@@ -1725,9 +1811,9 @@
     log('TEST: entity_domains restored');
   }, 'restoreHosts');
 
-  // Bypasses the 2s batching timer so the harness can show events landed
-  // without waiting or closing the tab (§14.2's flush triggers — timer,
-  // visibilitychange, pagehide — are unchanged for real traffic).
+  /* Bypasses the 2s batching timer so the harness can show events landed
+     without waiting or closing the tab (§14.2's flush triggers — timer,
+     visibilitychange, pagehide — are unchanged for real traffic). */
   root._flushNow = safe(function () { flush(); }, 'flushNow');
 
   if (document.readyState === 'loading') {

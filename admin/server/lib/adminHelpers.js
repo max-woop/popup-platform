@@ -48,7 +48,9 @@ function popupSummary(p) {
     id: p.external_id, external_id: p.external_id, name: p.name, template: p.template,
     status: p.status, priority: p.priority, starts_at: p.starts_at, ends_at: p.ends_at,
     devices: p.devices, trigger: p.trigger, updated_at: p.updated_at,
-    legal_mode: p.content && p.content.legal && p.content.legal.mode
+    legal_mode: p.content && p.content.legal && p.content.legal.mode,
+    offer: p.content && p.content.offer,
+    broker: p.content && p.content.broker
   };
 }
 

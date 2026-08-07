@@ -15,7 +15,9 @@ const statsRoutes = require('./routes/stats');
 const registrationRoutes = require('./routes/registration');
 const legalTextsRoutes = require('./routes/legalTexts');
 const settingsRoutes = require('./routes/settings');
+const experimentsRoutes = require('./routes/experiments');
 const ingestionRoutes = require('./routes/ingestion');
+const experiments = require('./lib/experiments');
 
 const PORT = process.env.PORT || 8787;
 const app = express();
@@ -48,6 +50,16 @@ app.use('/api', statsRoutes);
 app.use('/api', registrationRoutes);
 app.use('/api', legalTextsRoutes);
 app.use('/api', settingsRoutes);
+app.use('/api', experimentsRoutes);
+
+// §15 — automatic A/B resolution. A plain setInterval rather than a real
+// job scheduler: this is a single Railway process with no separate worker,
+// and "check every 5 minutes whether any automatic-mode test's ends_at has
+// passed" doesn't need more than that. Runs once at boot too, so a test
+// whose end date passed while the process was down still resolves on the
+// next deploy/restart instead of waiting a full interval.
+experiments.resolveDue();
+setInterval(experiments.resolveDue, 5 * 60 * 1000);
 
 // §14 — the Collector. Deliberately outside the HMAC-authed v1 router: a
 // visitor's browser can't hold a signing secret, so this is authorized by

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, Fragment } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  Pane, Heading, Paragraph, Text, TextInput, Textarea, Select, Button, Alert, Radio
+  Pane, Heading, Paragraph, Text, TextInput, Textarea, Select, Button, Alert, Radio, Table, Badge
 } from 'evergreen-ui';
 import { api } from '../lib/api';
 import { StatusBadge } from '../components/StatusBadge.jsx';
@@ -52,11 +52,20 @@ const CONTENT_FIELD_LABELS = {
   heading: 'Heading', subheading: 'Subheading', body: 'Body', theme: 'Theme',
   show_logo: 'Show logo', shape: 'Shape', position: 'Position',
   image_url: 'Image', image_alt: 'Image alt text',
+  offer: 'Offer', broker: 'Broker',
   duration_ms: 'Duration (ms)', volatility_pct: 'Volatility', win_body: 'Win message', lose_body: 'Lose message'
 };
-// Rendered elsewhere on this page (CTA combined below; legal has its own
-// editable card; overrides gets its own summary row) — never duplicated.
-const CONTENT_FIELDS_HANDLED_SEPARATELY = new Set(['heading', 'cta_label', 'cta_url', 'legal', 'overrides']);
+// Rendered elsewhere on this page (CTA fields above; legal has its own
+// editable card; overrides gets its own summary row; image_url/image_alt
+// get their own editable fields below, the one deliberate exception to
+// "Content is read-only" — see IMAGE_CAPABLE_TEMPLATES) — never duplicated.
+const CONTENT_FIELDS_HANDLED_SEPARATELY = new Set(['heading', 'cta_label', 'cta_url', 'legal', 'overrides', 'image_url', 'image_alt']);
+
+// Templates whose schema actually declares image_url (ingestSchemas.js) —
+// the only ones where showing an editable image field makes sense. Every
+// other field in Content stays purely source-system-owned; this one field
+// on these templates specifically is editable straight from the admin.
+const IMAGE_CAPABLE_TEMPLATES = new Set(['modal_media', 'modal_form_media']);
 
 function humanizeContentKey(key) {
   return CONTENT_FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
@@ -78,6 +87,17 @@ function KvRow({ label, children }) {
     <Pane display="flex" paddingY={8} borderBottom="1px solid #F1F3F8">
       <Text width={130} flexShrink={0} color="muted" size={300}>{label}</Text>
       <Pane flex={1} minWidth={0}><Text size={300}>{children}</Text></Pane>
+    </Pane>
+  );
+}
+
+// Same layout as KvRow, but the value column is an input — for the one
+// content field (image_url/image_alt) that's actually editable here.
+function EditableKvRow({ label, children }) {
+  return (
+    <Pane display="flex" alignItems="center" paddingY={8} borderBottom="1px solid #F1F3F8">
+      <Text width={130} flexShrink={0} color="muted" size={300}>{label}</Text>
+      <Pane flex={1} minWidth={0}>{children}</Pane>
     </Pane>
   );
 }
@@ -172,6 +192,9 @@ export default function PopupSettings() {
         frequency: popup.frequency,
         legal: popup.content.legal
       };
+      if (IMAGE_CAPABLE_TEMPLATES.has(popup.template)) {
+        patch.content = { image_url: popup.content.image_url || '', image_alt: popup.content.image_alt || '' };
+      }
       const updated = await api.popups.update(id, patch);
       setPopup(updated);
       setSavedAt(new Date());
@@ -305,7 +328,10 @@ export default function PopupSettings() {
             </Pane>
           </Card>
 
+          {popup.experiment && <ExperimentCard group={popup.experiment.group} canOperate={canOperate} />}
+
           <LegalCard legal={legal} canOperate={canOperate} canCustomLegal={canCustomLegal}
+            lockedOn={popup.content.broker === 'libertex.com'}
             onChange={(next) => setField('content.legal', next)} />
 
           {canOperate && (
@@ -321,10 +347,26 @@ export default function PopupSettings() {
         </Pane>
 
         <Pane>
-          <Card title="Content" subtitle="Read-only — authored by the source system.">
+          <Card title="Content" subtitle={IMAGE_CAPABLE_TEMPLATES.has(popup.template)
+            ? 'Authored by the source system — image URL is the one field editable here.'
+            : 'Read-only — authored by the source system.'}>
             <KvRow label="Heading">{popup.content.heading}</KvRow>
-            {popup.content.cta_label && (
-              <KvRow label="CTA">{popup.content.cta_label} → {popup.content.cta_url}</KvRow>
+            {popup.content.cta_label && <KvRow label="CTA label">{popup.content.cta_label}</KvRow>}
+            {popup.content.cta_url && <KvRow label="CTA link">{popup.content.cta_url}</KvRow>}
+
+            {IMAGE_CAPABLE_TEMPLATES.has(popup.template) && (
+              <>
+                <EditableKvRow label="Image URL">
+                  <TextInput width="100%" disabled={!canOperate} placeholder="https://cdn.libertex.com/…"
+                    value={popup.content.image_url || ''}
+                    onChange={(e) => setField('content.image_url', e.target.value)} />
+                </EditableKvRow>
+                <EditableKvRow label="Image alt text">
+                  <TextInput width="100%" disabled={!canOperate} placeholder="Describe the image"
+                    value={popup.content.image_alt || ''}
+                    onChange={(e) => setField('content.image_alt', e.target.value)} />
+                </EditableKvRow>
+              </>
             )}
 
             {Object.keys(popup.content)
@@ -351,7 +393,82 @@ export default function PopupSettings() {
   );
 }
 
-function LegalCard({ legal, canOperate, canCustomLegal, onChange }) {
+// §15 — reads GET /api/experiments and picks out the one group this popup
+// belongs to, rather than a dedicated per-group endpoint: the list is
+// cheap (computed from live popups + a stats query per variant, no
+// separate storage), and this keeps a single source of truth for
+// "current standings" between this card and a future dedicated
+// Experiments page, if one gets built later.
+function ExperimentCard({ group, canOperate }) {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api.experiments.list().then((list) => setData(list.find((g) => g.group === group) || null));
+  }, [group]);
+  useEffect(load, [load]);
+
+  async function declareWinner(winnerId) {
+    if (!confirm('Declare this variant the winner? Every other variant in this test is paused immediately.')) return;
+    setBusy(true);
+    try { await api.experiments.resolve(group, winnerId); load(); }
+    catch (e) { alert(e.message); }
+    finally { setBusy(false); }
+  }
+
+  if (!data) return null;
+  const metricLabel = data.success_metric === 'conv_rate' ? 'Conv. rate' : data.success_metric === 'leads' ? 'Leads' : 'Interactions';
+
+  return (
+    <Card title="A/B test"
+      subtitle={'Group "' + data.group + '" · ' + (data.mode === 'automatic'
+        ? 'auto-resolves by ' + metricLabel.toLowerCase() + (data.ends_at ? ' on ' + new Date(data.ends_at).toLocaleDateString() : '')
+        : 'resolved manually, by whichever role can operate this popup')}>
+      <Table>
+        <Table.Head>
+          <Table.TextHeaderCell>Variant</Table.TextHeaderCell>
+          <Table.TextHeaderCell flexBasis={70} flexGrow={0}>Weight</Table.TextHeaderCell>
+          <Table.TextHeaderCell flexBasis={70} flexGrow={0}>Views</Table.TextHeaderCell>
+          <Table.TextHeaderCell flexBasis={70} flexGrow={0}>Leads</Table.TextHeaderCell>
+          <Table.TextHeaderCell flexBasis={100} flexGrow={0}>{metricLabel}</Table.TextHeaderCell>
+          <Table.TextHeaderCell flexBasis={150} flexGrow={0}> </Table.TextHeaderCell>
+        </Table.Head>
+        <Table.Body>
+          {data.variants.map((v, i) => (
+            <Table.Row key={v.id}>
+              <Table.TextCell>
+                <Pane display="flex" alignItems="center" gap={6} flexWrap="wrap">
+                  <Text size={300} fontWeight={600}>{v.variant}</Text>
+                  <Text size={300} color="muted">{v.name}</Text>
+                  {i === 0 && data.variants.length > 1 && <Badge color="green">leading</Badge>}
+                  {v.status === 'paused' && <Badge color="neutral">paused</Badge>}
+                </Pane>
+              </Table.TextCell>
+              <Table.TextCell flexBasis={70} flexGrow={0}>{v.weight}%</Table.TextCell>
+              <Table.TextCell flexBasis={70} flexGrow={0}>{v.views}</Table.TextCell>
+              <Table.TextCell flexBasis={70} flexGrow={0}>{v.leads}</Table.TextCell>
+              <Table.TextCell flexBasis={100} flexGrow={0}>
+                {data.success_metric === 'conv_rate' ? (v.value * 100).toFixed(1) + '%' : v.value}
+              </Table.TextCell>
+              <Table.Cell flexBasis={150} flexGrow={0}>
+                {canOperate && !data.resolved && v.status !== 'paused' && (
+                  <Button size="small" disabled={busy} onClick={() => declareWinner(v.id)}>Declare winner</Button>
+                )}
+              </Table.Cell>
+            </Table.Row>
+          ))}
+        </Table.Body>
+      </Table>
+      {data.resolved && (
+        <Text size={300} color="muted" display="block" marginTop={12}>
+          Resolved — only the winning variant is still live; the rest were paused, not deleted.
+        </Text>
+      )}
+    </Card>
+  );
+}
+
+function LegalCard({ legal, canOperate, canCustomLegal, lockedOn, onChange }) {
   const [offReason, setOffReason] = useState(legal.off_reason || '');
   const [customText, setCustomText] = useState(legal.custom_text || '');
 
@@ -367,12 +484,16 @@ function LegalCard({ legal, canOperate, canCustomLegal, onChange }) {
             </Pane>
           } />
 
-        <Radio name="legal-mode" disabled={!canOperate} checked={legal.mode === 'off'}
+        <Radio name="legal-mode" disabled={!canOperate || lockedOn} checked={legal.mode === 'off'}
           onChange={() => onChange({ mode: 'off', off_reason: offReason })}
           label={
             <Pane>
-              <Text fontWeight={600} size={300}>Off <Text color="danger" size={300}>⚠ requires reason</Text></Text>
-              <Text size={300} color="muted" display="block">No legal text shown. Audit-logged.</Text>
+              <Text fontWeight={600} size={300}>Off <Text color="danger" size={300}>{lockedOn ? '⚠ not available for libertex.com' : '⚠ requires reason'}</Text></Text>
+              <Text size={300} color="muted" display="block">
+                {lockedOn
+                  ? "The risk warning is mandatory for libertex.com content — this platform won't accept legal.mode: \"off\" while content.broker is libertex.com, from any role."
+                  : 'No legal text shown. Audit-logged.'}
+              </Text>
               {legal.mode === 'off' && (
                 <TextInput marginTop={8} width="100%" placeholder="Reason (required)" disabled={!canOperate}
                   value={offReason}

@@ -61,6 +61,15 @@ const VALID_THEMES = [
   'lbx-blue', 'lbx-black', 'lbx-white'
 ];
 
+// Which top-level domain this popup's campaign is actually for — a
+// declared label, independent of (and not a replacement for) the runtime
+// entity_domains hostname resolution legal text still uses (§11.3.2). A
+// popup's targeting can match several hosts, so this is the source system
+// stating intent ("this campaign is a libertex.com thing"), not something
+// derived automatically. Used to enforce §11.3.1's rule for the flagship
+// brand specifically — see validateSemantics() below and routes/popups.js.
+const BROKER_VALUES = ['libertex.com', 'libertex.org', 'fxclub.org', 'lbx.com'];
+
 function withCommon(props, required) {
   return {
     type: 'object',
@@ -69,6 +78,8 @@ function withCommon(props, required) {
     properties: Object.assign({
       theme: { enum: VALID_THEMES },
       show_logo: { type: 'boolean', default: false },
+      offer: { type: 'string', maxLength: 80 },
+      broker: { enum: BROKER_VALUES },
       legal: legalSchema,
       overrides: {
         type: 'object',
@@ -109,6 +120,19 @@ const CONTENT_SCHEMAS = {
   modal_form: withCommon({
     heading: { type: 'string', maxLength: 80 },
     body: { type: 'string', maxLength: 400 },
+    cta_label: { type: 'string', maxLength: 30 }
+  }, ['heading']),
+
+  // modal_form + an image panel — modal_media's relationship to modal,
+  // applied to modal_form the same way: identical schema, one field added.
+  // Still no cta_url (§9's llLanding widget owns the submit action, not a
+  // link), which is what keeps this a distinct template rather than just
+  // modal_media with a form slot.
+  modal_form_media: withCommon({
+    heading: { type: 'string', maxLength: 80 },
+    body: { type: 'string', maxLength: 400 },
+    image_url: { type: 'string', pattern: IMAGE_HOST_PATTERN },
+    image_alt: { type: 'string', maxLength: 125 },
     cta_label: { type: 'string', maxLength: 30 }
   }, ['heading']),
 
@@ -231,6 +255,28 @@ const topLevelSchema = {
         selector: { type: 'string', maxLength: 200 }
       }
     },
+    // §15 — A/B testing. Popups sharing `group` compete for one traffic
+    // slot instead of each showing independently (sdk.js's pickVariant());
+    // a group is "the test", each popup in it is one variant. Deliberately
+    // top-level, not inside `content` — it decides *which popup* a visitor
+    // sees, not what that popup displays, the same reason `targeting` and
+    // `trigger` are top-level rather than content fields.
+    experiment: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['group', 'variant'],
+      properties: {
+        group: { type: 'string', minLength: 1, maxLength: 80 },
+        variant: { type: 'string', minLength: 1, maxLength: 20 },
+        weight: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        mode: { enum: ['manual', 'automatic'], default: 'manual' },
+        // Which metric decides the winner in automatic mode (§15.2) — the
+        // exact same three definitions Statistics already uses site-wide
+        // (statsAggregate.js's siteOverview), not a fourth reinvention.
+        success_metric: { enum: ['leads', 'interactions', 'conv_rate'], default: 'conv_rate' },
+        ends_at: { type: ['string', 'null'], format: 'date-time' }
+      }
+    },
     frequency: {
       type: 'object',
       additionalProperties: false,
@@ -288,7 +334,18 @@ function validateSemantics(body) {
   if (body.starts_at && body.ends_at && Date.parse(body.ends_at) <= Date.parse(body.starts_at)) {
     details.push({ path: 'ends_at', message: 'must be after starts_at' });
   }
+  // The flagship brand's risk warning is never optional, regardless of who
+  // sends the request or what role they hold — stronger than the general
+  // Compliance-gated legal.mode rules, deliberately: this is the one broker
+  // where "off" isn't a request this API will accept at all.
+  const content = body.content;
+  if (content && content.broker === 'libertex.com' && content.legal && content.legal.mode === 'off') {
+    details.push({ path: 'content.legal.mode', message: 'libertex.com content cannot set legal.mode to "off" — the risk warning is mandatory for this broker' });
+  }
+  if (body.experiment && body.experiment.mode === 'automatic' && !body.experiment.ends_at) {
+    details.push({ path: 'experiment.ends_at', message: 'required when experiment.mode is "automatic" — otherwise there is no end date to resolve the winner on' });
+  }
   return { ok: details.length === 0, details };
 }
 
-module.exports = { validateUpsertBody, validateSemantics, CONTENT_SCHEMAS, VALID_THEMES };
+module.exports = { validateUpsertBody, validateSemantics, CONTENT_SCHEMAS, VALID_THEMES, IMAGE_HOST_PATTERN, BROKER_VALUES };
