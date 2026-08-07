@@ -36,6 +36,15 @@ const overrideSchema = {
   }
 };
 
+// This is the ingestion contract's own image_url rule (§13, source systems
+// only) — stays CDN-only, deliberately. The admin PATCH path additionally
+// accepts this platform's own uploaded files (routes/uploads.js), but that
+// check needs the live request's own host to mean anything (see
+// isTrustedImageUrl() in routes/popups.js) — a static regex can't express
+// "this platform's own current origin" independent of which environment
+// it's running in, and a looser pattern that only checks the /uploads/…
+// *path shape* would accept the same path on an attacker's host too. Kept
+// intentionally separate rather than trying to fold both into one pattern.
 const IMAGE_HOST_PATTERN = '^https://cdn\\.libertex\\..*';
 const HTTPS_ONLY_PATTERN = '^https://';
 
@@ -91,9 +100,16 @@ function withCommon(props, required) {
 }
 
 const CONTENT_SCHEMAS = {
+  // countdown formats the popup's own top-level ends_at (§6.2) next to the
+  // CTA — never a second, separate deadline field, so it can never disagree
+  // with the schedule targeting/frequency already enforce. Requires ends_at
+  // when true (validateSemantics() below), same "declare the prerequisite,
+  // don't let it silently render nothing" shape as experiment.mode's own
+  // ends_at requirement above it in this file.
   banner: withCommon(Object.assign({
     heading: { type: 'string', maxLength: 120 },
-    position: { enum: ['top', 'bottom'], default: 'top' }
+    position: { enum: ['top', 'bottom'], default: 'top' },
+    countdown: { type: 'boolean', default: false }
   }, CTA_FIELDS), ['heading']),
 
   modal: withCommon(Object.assign({
@@ -102,14 +118,26 @@ const CONTENT_SCHEMAS = {
     body: { type: 'string', maxLength: 400 },
     // Square (§4.7.2 "square or portrait formats") — logo/heading/subhead
     // grouped near the top, CTA and legal pinned to the bottom edge.
-    shape: { enum: ['auto', 'square'], default: 'auto' }
+    shape: { enum: ['auto', 'square'], default: 'auto' },
+    countdown: { type: 'boolean', default: false },
+    // A short, source-system-declared trust line next to the CTA ("140
+    // accounts opened this week") — plain text this platform renders
+    // as-is, never a live count it computes or invents (§10.1: content is
+    // source-system-owned; a fabricated number would be worse than none).
+    // Scoped to modal/modal_media specifically — the two templates with a
+    // static CTA sitting still long enough for a trust line to land next
+    // to it, unlike a banner's compact single line or gamification's own
+    // multi-stage reveal.
+    proof_text: { type: 'string', maxLength: 80 }
   }, CTA_FIELDS), ['heading']),
 
   modal_media: withCommon(Object.assign({
     heading: { type: 'string', maxLength: 80 },
     body: { type: 'string', maxLength: 400 },
     image_url: { type: 'string', pattern: IMAGE_HOST_PATTERN },
-    image_alt: { type: 'string', maxLength: 125 }
+    image_alt: { type: 'string', maxLength: 125 },
+    countdown: { type: 'boolean', default: false },
+    proof_text: { type: 'string', maxLength: 80 } // see modal's own field above
   }, CTA_FIELDS), ['heading', 'cta_label', 'cta_url']),
 
   // §9's rewrite: modal_form embeds the existing llLanding registration
@@ -117,11 +145,19 @@ const CONTENT_SCHEMAS = {
   // same shape as `modal`. Which fields exist, the consent wording, and
   // submission itself are resolved centrally (registration_domains /
   // consent_texts), never typed per popup — see popup-platform-spec.md §9.
+  // broker is required here specifically (every other template leaves it
+  // optional, see withCommon) — a registration form is only ever as good
+  // as the broker-specific widget it embeds (registration_domains, keyed
+  // by the same domain content.broker uses), so a form with no declared
+  // broker has nothing to validate against and would just be a guess at
+  // ingestion time about which widget it's meant to end up next to. See
+  // validateSemantics() below for the check that the guess, once made, is
+  // actually backed by a configured widget.
   modal_form: withCommon({
     heading: { type: 'string', maxLength: 80 },
     body: { type: 'string', maxLength: 400 },
     cta_label: { type: 'string', maxLength: 30 }
-  }, ['heading']),
+  }, ['heading', 'broker']),
 
   // modal_form + an image panel — modal_media's relationship to modal,
   // applied to modal_form the same way: identical schema, one field added.
@@ -134,7 +170,7 @@ const CONTENT_SCHEMAS = {
     image_url: { type: 'string', pattern: IMAGE_HOST_PATTERN },
     image_alt: { type: 'string', maxLength: 125 },
     cta_label: { type: 'string', maxLength: 30 }
-  }, ['heading']),
+  }, ['heading', 'broker']),
 
   // §5.4 — button-only answers, capped at 3 questions. No free-text field
   // exists to validate, by design: nothing here can carry a payload.
@@ -329,7 +365,12 @@ function validateUpsertBody(body) {
   return { ok: details.length === 0, details };
 }
 
-function validateSemantics(body) {
+// registries is { entity_domains, registration_domains } — the same two
+// domain maps sdk.js resolves at render time (§11.3.2/§9.3) — passed in by
+// the caller (routes/ingestion.js) rather than loaded here, so this stays a
+// pure function of its arguments and is still callable without a live store.
+// Semantic checks that need them are skipped, not failed open, when omitted.
+function validateSemantics(body, registries) {
   const details = [];
   if (body.starts_at && body.ends_at && Date.parse(body.ends_at) <= Date.parse(body.starts_at)) {
     details.push({ path: 'ends_at', message: 'must be after starts_at' });
@@ -344,6 +385,29 @@ function validateSemantics(body) {
   }
   if (body.experiment && body.experiment.mode === 'automatic' && !body.experiment.ends_at) {
     details.push({ path: 'experiment.ends_at', message: 'required when experiment.mode is "automatic" — otherwise there is no end date to resolve the winner on' });
+  }
+  if (content && content.countdown && !body.ends_at) {
+    details.push({ path: 'content.countdown', message: 'requires a top-level ends_at — the countdown formats that field, it does not carry its own deadline' });
+  }
+  // A registration form is only as good as the broker-specific widget it
+  // embeds. content.broker is required on both form templates (the schema
+  // above), so by this point it exists; what's checked here is that it
+  // isn't a guess — registration_domains has an entry for that *exact*
+  // broker domain, or this popup would publish clean and then fail-safe-
+  // suppress for every real visitor (sdk.js's buildForm() resolves the
+  // widget by exact location.hostname, not by entity — resolveEntity's own
+  // comment explains why: a suffix/entity-level match would let this
+  // popup's declared "fxclub.org" quietly borrow libertex.org's widget,
+  // which shares fxclub.org's "fcil" entity but not its API credentials).
+  if ((body.template_id === 'modal_form' || body.template_id === 'modal_form_media') && content && content.broker && registries) {
+    const registrationDomains = registries.registration_domains || {};
+    const hasWidget = Object.prototype.hasOwnProperty.call(registrationDomains, content.broker);
+    if (!hasWidget) {
+      details.push({
+        path: 'content.broker',
+        message: 'no registration widget is configured yet for broker "' + content.broker + '" (admin Registration screen / registration_domains) — this form would never actually render'
+      });
+    }
   }
   return { ok: details.length === 0, details };
 }

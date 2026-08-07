@@ -171,6 +171,7 @@ const stmts = {
     VALUES (@id, @popup_id, @impression_id, @type, @page_url, @device, @session_id, @legal_version, @field_id, @element_id, @occurred_at, @received_at, @origin, @ip_hash, @referrer, @country)
   `),
   eventCountForPopup: db.prepare('SELECT COUNT(*) AS n FROM raw_events WHERE popup_id = ?'),
+  eventCountForPopupByType: db.prepare('SELECT COUNT(*) AS n FROM raw_events WHERE popup_id = ? AND type = ?'),
   eventsForPopupSince: db.prepare('SELECT * FROM raw_events WHERE popup_id = ? AND occurred_at >= ? ORDER BY occurred_at ASC'),
   recentEvents: db.prepare('SELECT * FROM raw_events ORDER BY received_at DESC LIMIT 200'),
   // field_id/element_id hold question_id/value for this event type (see
@@ -207,6 +208,13 @@ const stmts = {
       SUM(CASE WHEN type IN ('click','form_start','form_submit','questionnaire_answer','game_result') THEN 1 ELSE 0 END) AS interactions
     FROM raw_events
     WHERE popup_id = ? AND occurred_at >= ?
+  `),
+  // Bounded-window count for one event type, generic by design — used for
+  // alerts.js's impression-drop check (this-hour vs. the same hour a week
+  // ago), which needs a *closed* range, unlike overviewSummary's open
+  // "since now" one.
+  eventCountInWindow: db.prepare(`
+    SELECT COUNT(*) AS n FROM raw_events WHERE type = ? AND occurred_at >= ? AND occurred_at < ?
   `),
   overviewByReferrer: db.prepare(`
     SELECT
@@ -303,6 +311,7 @@ function insertEvent(ev) {
 }
 
 function eventCountForPopup(popupId) { return stmts.eventCountForPopup.get(popupId).n; }
+function eventCountForPopupByType(popupId, type) { return stmts.eventCountForPopupByType.get(popupId, type).n; }
 function eventsForPopupSince(popupId, sinceIso) { return stmts.eventsForPopupSince.all(popupId, sinceIso); }
 function recentEvents() { return stmts.recentEvents.all(); }
 function questionnaireAnswerCounts(popupId) { return stmts.questionnaireAnswerCounts.all(popupId); }
@@ -315,6 +324,7 @@ function popupEventSummary(popupId, sinceIso) {
   const row = stmts.popupEventSummary.get(popupId, sinceIso);
   return { views: row.views || 0, leads: row.leads || 0, interactions: row.interactions || 0 };
 }
+function eventCountInWindow(type, sinceIso, untilIso) { return stmts.eventCountInWindow.get(type, sinceIso, untilIso).n; }
 function overviewByReferrer(sinceIso) { return stmts.overviewByReferrer.all(sinceIso); }
 function overviewByPage(sinceIso) { return stmts.overviewByPage.all(sinceIso); }
 function overviewByCountry(sinceIso) { return stmts.overviewByCountry.all(sinceIso); }
@@ -324,7 +334,7 @@ module.exports = {
   getIdempotency, saveIdempotency,
   activeHmacKeys, addHmacKey, deactivateHmacKey,
   logIngestAudit, recentIngestAudit,
-  insertEvent, eventCountForPopup, eventsForPopupSince, recentEvents,
+  insertEvent, eventCountForPopup, eventCountForPopupByType, eventsForPopupSince, recentEvents, eventCountInWindow,
   questionnaireAnswerCounts,
   overviewSummary, overviewByReferrer, overviewByPage, overviewByCountry,
   popupEventSummary,

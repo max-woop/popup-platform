@@ -17,7 +17,9 @@ const legalTextsRoutes = require('./routes/legalTexts');
 const settingsRoutes = require('./routes/settings');
 const experimentsRoutes = require('./routes/experiments');
 const ingestionRoutes = require('./routes/ingestion');
+const uploadsRoutes = require('./routes/uploads');
 const experiments = require('./lib/experiments');
+const monitor = require('./lib/monitor');
 
 const PORT = process.env.PORT || 8787;
 const app = express();
@@ -51,6 +53,11 @@ app.use('/api', registrationRoutes);
 app.use('/api', legalTextsRoutes);
 app.use('/api', settingsRoutes);
 app.use('/api', experimentsRoutes);
+app.use('/api', uploadsRoutes);
+// Served from the same origin the upload endpoint stamps into the URL it
+// returns (routes/uploads.js) — image_url values it produces are only ever
+// valid because this mount exists at that exact path.
+app.use('/uploads', express.static(uploadsRoutes.UPLOADS_DIR));
 
 // §15 — automatic A/B resolution. A plain setInterval rather than a real
 // job scheduler: this is a single Railway process with no separate worker,
@@ -60,6 +67,14 @@ app.use('/api', experimentsRoutes);
 // next deploy/restart instead of waiting a full interval.
 experiments.resolveDue();
 setInterval(experiments.resolveDue, 5 * 60 * 1000);
+
+// §16.1 — the two rate-over-a-window alert signals (impressions drop,
+// SDK error rate); the other four either fire inline at their own call
+// site or don't apply anymore (see monitor.js's own comment). Every
+// 15 minutes is frequent enough that an hour-long dip is caught with time
+// to act, without re-running an hour-wide SQL scan on every request.
+monitor.runChecks();
+setInterval(monitor.runChecks, 15 * 60 * 1000);
 
 // §14 — the Collector. Deliberately outside the HMAC-authed v1 router: a
 // visitor's browser can't hold a signing secret, so this is authorized by

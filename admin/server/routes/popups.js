@@ -12,6 +12,23 @@ const { requireRole, audit, popupSummary, popupDetail, republish } = require('..
 const { IMAGE_HOST_PATTERN } = require('../lib/ingestSchemas');
 
 const imageHostRe = new RegExp(IMAGE_HOST_PATTERN);
+// Server-generated filenames only (routes/uploads.js) — matches its own
+// crypto.randomUUID() + extension shape.
+const uploadsPathRe = /^\/uploads\/[A-Za-z0-9-]+\.(jpe?g|png|webp|gif)$/;
+
+// CDN pattern, OR this exact deployment's own uploaded files. The second
+// branch needs the live request, not just a static pattern (see
+// ingestSchemas.js's IMAGE_HOST_PATTERN comment) — an /uploads/… path is
+// only trustworthy on *this* origin; the same path on an attacker's host
+// is exactly the thing the allowlist exists to reject, so this checks the
+// URL's origin against req's own origin exactly, not merely its shape.
+function isTrustedImageUrl(url, req) {
+  if (imageHostRe.test(url)) return true;
+  let parsed;
+  try { parsed = new URL(url); } catch (e) { return false; }
+  const ownOrigin = req.protocol + '://' + req.get('host');
+  return parsed.origin === ownOrigin && uploadsPathRe.test(parsed.pathname);
+}
 
 const router = express.Router();
 
@@ -61,14 +78,15 @@ router.patch('/popups/:id', requireRole('operator'), function (req, res) {
   // Content is otherwise source-system-owned (§10.1) — this is the one
   // deliberate, narrow exception (admin/HOW_TO_SEND_CONTENT.md), not a
   // general "edit any content field" door: only image_url/image_alt, and
-  // image_url still has to pass the same CDN-host allowlist the ingestion
-  // API enforces (ingestSchemas.js's IMAGE_HOST_PATTERN) so this can't
-  // become a way to point a popup at an arbitrary image host by hand.
+  // image_url still has to resolve to a trusted host — either the real CDN
+  // (ingestSchemas.js's IMAGE_HOST_PATTERN) or this deployment's own
+  // uploaded file (routes/uploads.js) — so this can't become a way to
+  // point a popup at an arbitrary image host by hand.
   if (body.content && typeof body.content === 'object') {
     if (Object.prototype.hasOwnProperty.call(body.content, 'image_url')) {
       const url = body.content.image_url;
-      if (url && !imageHostRe.test(url)) {
-        return res.status(422).json({ error: 'validation_failed', details: [{ path: 'content.image_url', message: 'must be an https://cdn.libertex.* URL' }] });
+      if (url && !isTrustedImageUrl(url, req)) {
+        return res.status(422).json({ error: 'validation_failed', details: [{ path: 'content.image_url', message: 'must be an https://cdn.libertex.* URL, or a file uploaded through this platform' }] });
       }
       next.content.image_url = url || '';
     }
@@ -110,6 +128,49 @@ router.delete('/popups/:id', requireRole('operator'), function (req, res) {
   store.save(db);
   republish();
   res.json(popupDetail(sqliteStore.getByExternalId(req.params.id)));
+});
+
+// Clones everything (content included) under a fresh external_id, always
+// paused — an identical popup coming up live alongside the original,
+// competing for the same targeting/priority, would be a confusing default
+// nobody actually wants. experiment is deliberately dropped: duplicating a
+// live A/B variant shouldn't silently make the copy a third member of that
+// test (§11.3.7-adjacent — same "declared, not inherited" reasoning).
+// Content is still source-system-owned past this point (§10.1) — this
+// gives whoever owns that integration a real starting point to PUT a
+// modified version over, not a fully admin-editable copy.
+router.post('/popups/:id/duplicate', requireRole('operator'), function (req, res) {
+  const db = store.load();
+  const existing = sqliteStore.getByExternalId(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'not_found' });
+
+  let newId = existing.external_id + '-copy';
+  let n = 2;
+  while (sqliteStore.getByExternalId(newId)) {
+    newId = existing.external_id + '-copy-' + n;
+    n += 1;
+  }
+
+  const now = new Date().toISOString();
+  const doc = {
+    name: existing.name + ' (copy)',
+    template: existing.template,
+    status: 'paused',
+    priority: existing.priority,
+    starts_at: existing.starts_at,
+    ends_at: existing.ends_at,
+    devices: existing.devices,
+    trigger: existing.trigger,
+    frequency: existing.frequency,
+    targeting: existing.targeting,
+    content: existing.content
+  };
+
+  const { popup } = sqliteStore.upsertPopup(newId, doc, now);
+  audit(db, req, 'popup.duplicate', 'popup', newId, null, { duplicated_from: existing.external_id });
+  store.save(db);
+  republish();
+  res.status(201).json(popupDetail(popup));
 });
 
 module.exports = router;

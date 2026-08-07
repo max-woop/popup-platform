@@ -13,6 +13,19 @@ function resolveEntity(entityDomains, hostname) {
   return Object.prototype.hasOwnProperty.call(map, host) ? map[host] : null;
 }
 
+// Mirrors sdk.js's brokerMismatch() (§11.3.7) — added alongside it, not
+// after, specifically because this file's whole job is to never give an
+// answer the SDK itself wouldn't. A declared content.broker resolving to a
+// different entity than the tested URL's own hostname is exactly as fatal
+// to rendering as a legal-fail-safe suppression, so the URL tester has to
+// know about it too, not just the two checks that existed before broker
+// enforcement did.
+function brokerMismatch(entityDomains, content, entity) {
+  if (!content || !content.broker) return false;
+  var brokerEntity = resolveEntity(entityDomains, content.broker);
+  return !brokerEntity || brokerEntity !== entity;
+}
+
 function resolveLegal(legalRegistry, popup, entity, country, locale) {
   var mode = (popup.content && popup.content.legal && popup.content.legal.mode) || 'auto';
 
@@ -130,6 +143,7 @@ function allowedOnDevice(popup, device) {
 module.exports = {
   resolveEntity: resolveEntity,
   resolveLegal: resolveLegal,
+  brokerMismatch: brokerMismatch,
   evaluateTargeting: evaluateTargeting,
   withinSchedule: withinSchedule,
   allowedOnDevice: allowedOnDevice

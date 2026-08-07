@@ -15,6 +15,7 @@
     "better-sqlite3": "^12.11.1",
     "cors": "^2.8.5",
     "express": "^4.19.2",
-    "geoip-lite": "^1.4.10"
+    "geoip-lite": "^1.4.10",
+    "multer": "^2.2.0"
   }
 }

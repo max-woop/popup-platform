@@ -379,6 +379,19 @@ the comments around `buildForm()`.
 
 ---
 
+## Platform-quality batch
+
+Two rounds of work, both driven by user requests rather than the delivery-phase plan above. First: split CTA label/URL apart in the admin Content card, `modal_form_media` template, `offer`/`broker` content fields, the libertex.com legal fail-safe, admin-editable `image_url`, a gamification chart-reveal animation, and A/B testing (spec §15) — variants sharing `experiment.group` compete for one traffic slot, live the moment 2+ are pushed, resolved manually or automatically. Second, a broker/entity unification plus 11 platform-quality items: `content.broker` and the `entity_domains`/`registration_domains` registries' `entity` are now treated as one concept, not two — enforced both at ingestion (`modal_form`/`modal_form_media` require `broker`, rejected if no registration widget exists for it) and at render time (`brokerMismatch()`, sdk.js — a popup never renders where the visitor's resolved entity disagrees with its declared broker); plus:
+
+- **Operational readiness**: GitHub Actions CI (`.github/workflows/ci.yml`) running the gzip-budget build and the full test suite on every push; axe-core wired into `test.js` against all seven templates; the ingestion API rate-limited per key (120/min, §10.4); a pluggable alert notifier (`lib/alerts.js`, §16.1) wired to publish failures, unusual update rates, impression drops, and (once sdk.js emits the events) SDK error rate.
+- **Admin productivity**: duplicate popup, bulk pause/resume/archive, and an image upload endpoint (§12.2) closing the "no path onto the CDN from inside this platform" gap.
+- **Analytics depth**: an offer/broker leaderboard and step-by-step funnels for `questionnaire`/`gamification` (§14.3).
+- **New content, no new templates**: `countdown` (banner/modal/modal_media, formats the popup's own `ends_at` live) and `proof_text` (modal/modal_media, a short trust line) — deliberately *not* a prize-wheel template, which was suggested and declined as off-brand.
+
+SDK sits at 19.6 KB gzipped against the 20 KB budget (§8.1) after all of this — tight, most of the remaining headroom went to `countdown`'s live-ticking logic. 48/48 automated checks pass (`node test.js`). Full detail for all of it: spec §5.1 (new content fields), §9.3/§11.3.7 (broker/entity), §10.4 (rate limit), §12.2 (admin conveniences), §14.3 (leaderboard/funnels), §15 (A/B testing), §16.1 (alerts), §16.3 (axe-core).
+
+---
+
 ## Known gaps / open items
 
 1. ~~`build.js` / `test.js` are broken in this checkout.~~ **Fixed** — both

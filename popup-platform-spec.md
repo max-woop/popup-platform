@@ -404,6 +404,8 @@ Adding a template is a code change and a release. There is deliberately no templ
 
 Three things to note. Every string has a `maxLength` — layout protection as much as security, since the source system will eventually send a 400-character heading. `image_url` is restricted by pattern to our own CDN, so the source system cannot cause visitors to load images from arbitrary hosts. And **`legal` appears only at the top level, never inside `$defs/override`** — with `additionalProperties: false` on the override object, this makes it structurally impossible for a device override to hide or alter a risk warning (§11.3.4).
 
+This example predates several fields shipped since (`offer`, `broker`, `countdown`, `proof_text` among them) and isn't kept byte-for-byte current with every addition — `admin/HOW_TO_SEND_CONTENT.md`'s field reference table is generated from the real validation schema (`ingestSchemas.js`) and is the one that can't drift; treat it as authoritative over this illustration. Two worth calling out here specifically since they're opt-in, not always-present: **`countdown`** (`banner`/`modal`/`modal_media`, boolean) formats the popup's own top-level `ends_at` into a live "Nd HH:MM:SS" next to the CTA — never a second deadline field, so it can't disagree with what targeting/frequency already enforce, and is rejected at ingestion if `ends_at` isn't set. **`proof_text`** (`modal`/`modal_media`, string ≤80 chars) is a short source-system-declared trust line rendered as-is next to the CTA — plain content this platform displays, never a live count it computes (§10.1).
+
 ### 5.2 Image handling
 
 Since images arrive from the source system:
@@ -819,6 +821,8 @@ Script version, API key, and field set already differ per domain in production (
 
 **Fail-safe, same rule as §11.3.3:** if the current host has no entry, `modal_form` popups don't render. A registration popup with no way to actually register is worse than no popup — this is the same asymmetry §11.3.3 already establishes for risk warnings, applied to a second thing that can't be allowed to silently degrade.
 
+**`modal_form`/`modal_form_media` require `content.broker`, and it's cross-checked against this registry, not just displayed.** See §11.3.7 — a form popup only renders when its own declared broker resolves to the same entity as the visitor's actual hostname, in addition to the host having a registry entry at all.
+
 ### 9.4 Consent text registry
 
 The consent checkbox label in production isn't plain text — it names the legal entity ("Indication Investments Ltd.") and links to the Privacy Policy and Terms & Conditions PDFs, in the visitor's language. That's exactly as compliance-sensitive as the risk warning, and the platform already has a pattern for exactly this shape of problem (§11.3.1's rationale — a per-campaign field means unreviewed wording; a central registry means one edit updates every live popup). Reuse it:
@@ -923,7 +927,7 @@ Serve `sdk.js` from an immutable path (`/popups/v1/sdk.<hash>.js`) with a long T
 
 ### 10.4 API authentication
 
-**Ingestion (source system):** HMAC-SHA256 over `timestamp + method + path + body`; `X-Signature` and `X-Timestamp` headers; reject skew > 5 min; rotatable keys; `Idempotency-Key` support.
+**Ingestion (source system):** HMAC-SHA256 over `timestamp + method + path + body`; `X-Signature` and `X-Timestamp` headers; reject skew > 5 min; rotatable keys; `Idempotency-Key` support. Rate-limited per key — 120 requests/minute, a `429` past that — same sliding-window shape as the collector's own limit below, just keyed by `hmacKeyId` instead of an IP hash, since ingestion is authenticated and the key is the more precise "who" (an IP can be several integrations behind NAT; a key can't). Closes what §16.1's alert table already named ("unusual update rate from source system") but nothing previously bounded.
 
 **Admin UI:** corporate SSO/OIDC. Given internal-only use, two roles are enough — **Viewer** (stats) and **Operator** (targeting, pause, leads). Skip finer RBAC.
 
@@ -1096,6 +1100,16 @@ The preview selector lists **domains, not entity codes** — an operator thinks 
 
 A separate **Legal texts** screen, visible to Compliance and read-only for Operators, manages the registry: current wording per entity/country, version history, effective dates, and a list of live popups affected by a pending change.
 
+### 11.3.7 `content.broker` — declared intent, now enforced
+
+`content.broker` (`libertex.com` | `libertex.org` | `fxclub.org` | `lbx.com`, every template) and the `entity` an `entity_domains`/`registration_domains` row carries are **the same concept**, not two: a broker's domain is exactly the key `entity_domains` already resolves by, so `resolveEntity(config, content.broker)` gives back that broker's entity the same way `resolveEntity(config, location.hostname)` gives back the visitor's. `broker` was originally just a declared label — "the source system stating intent" — with nothing checking the intent held up. It's now a fail-safe, both ends:
+
+- **At ingestion** (`validateSemantics()`): `modal_form`/`modal_form_media` now *require* `content.broker` — a registration form with no declared broker has nothing to embed a widget against — and reject the request if `registration_domains` has no entry for that *exact* broker domain yet. Deliberately exact, not entity-level: `fxclub.org` shares `libertex.org`'s `fcil` entity but not its widget credentials, so a same-entity match would wrongly accept a form that would still fail-safe-suppress for every real `fxclub.org` visitor. Catches the mistake before it publishes.
+- **At render** (`sdk.js`'s `brokerMismatch()`, called from both `show()` and `renderInline()`): any popup with a declared `broker` is suppressed outright if the *visitor's* resolved entity doesn't match — same fail-closed shape as §11.3.3, applied to a second field. This is the real guarantee: even if targeting ever let a popup reach the wrong domain, a `libertex.org`-broker popup — registration form or not — cannot render on a `libertex.com` visitor, or vice versa.
+- **In the registry itself** (`POST /api/registration-domains`): a host already mapped to an entity in `entity_domains` can't be re-registered under a different entity here. The two registries can't drift apart by admin mistake either.
+
+Net effect for §9.3's fail-safe specifically: a `modal_form`/`modal_form_media` popup now only ever reaches a real visitor when *three* things agree — the visitor's hostname resolves an entity, that entity has a `registration_domains` widget, and the popup's own declared `broker` resolves to that same entity. Any one of those missing, and it's simply not shown — never a broken or mismatched form.
+
 ---
 
 ## 12. Admin UI
@@ -1104,10 +1118,10 @@ Deliberately minimal — content authoring happens in the source system.
 
 | Screen | Contents |
 |---|---|
-| **Popup list** | Status, template, schedule, live/paused badge, one-click pause |
-| **Popup settings** | Schedule, frequency caps, trigger, devices, **legal toggle** (§11.3.6) |
+| **Popup list** | Status, template, offer, broker, schedule, live/paused badge, one-click pause, **bulk pause/resume/archive** and **duplicate** (§12.2) |
+| **Popup settings** | Schedule, frequency caps, trigger, devices, **legal toggle** (§11.3.6), image URL (§12.2), A/B test card when part of one (§15.4), funnel card for `gamification` (§14.3) |
 | **Targeting** | Rule builder + **URL tester** |
-| **Statistics** | Per-popup metrics, date range, device breakdown |
+| **Statistics** | Per-popup metrics, date range, device breakdown, site-wide overview, **offer/broker leaderboard** and questionnaire funnel (§14.3) |
 | **Legal texts** | Registry per broker entity / country — Compliance edits, Operators read (§11.3.2) |
 | **Registration** | `registration_domains` (script/API key/fields per host) and `consent_texts` (per entity/locale, with links) — Compliance edits, Operators read (§9.3, §9.4) |
 | **Settings** | API keys, global caps, kill switch, audit log |
@@ -1123,6 +1137,14 @@ Because the entity derives from the hostname (§11.3.2), pasting a full URL reso
 It also surfaces the §11.3.3 suppression case explicitly. "Suppressed: `promo.libertex.io` is not in the domain map" is a far better diagnostic than a silently missing popup, and it is exactly the failure a new domain launch will produce.
 
 This is the single highest-value feature in the admin UI. It eliminates nearly all "why isn't my popup showing" support traffic, which is otherwise the dominant operational cost of any targeting system. Build it in phase 1, not later.
+
+### 12.2 Operator conveniences
+
+Three additions on top of the deliberately-minimal baseline above — none of them change what's editable (§10.1's content-ownership rule is untouched), they just remove friction around it:
+
+- **Duplicate.** Clones a popup's full config — content included, as a snapshot — under a fresh `external_id` (`<id>-copy`, `-copy-2`, … on collision), always `paused` regardless of the original's status. Never `experiment`: duplicating a live A/B variant shouldn't silently make the copy a third member of that test. Since content stays source-system-owned past this point, the real value is giving whoever owns that integration a concrete starting payload to `PUT` a modified version over — not a fully admin-editable copy.
+- **Bulk actions.** Multi-select on the Popup list for pause/resume/archive. Pause and resume filter to popups actually in the *other* state first (pausing a mixed live/paused selection must not resume the already-paused ones), then call the same single-popup endpoints per popup rather than a bulk-only route — one audit-log entry per popup (§11.3.5), not one opaque "bulk" entry hiding which popups were actually touched.
+- **Image upload.** `POST /api/uploads` (operator role, 5MB cap, `image/jpeg`\|`png`\|`webp`\|`gif` only — deliberately no `image/svg+xml`, which is executable markup and exactly the class of risk §10.2 exists to rule out) accepts a file, stores it server-generated-filename-only under `data/uploads/` (same Railway Volume the SQLite file already depends on), and returns an absolute URL built from the request's own host. `image_url`'s trust check (§10.1's admin-edit exception) accepts this alongside the real CDN pattern, but *only* when the URL's origin exactly matches the live request's own origin and the path matches the upload endpoint's own filename shape — a same-shaped `/uploads/…` path on a different host is exactly what that check exists to reject, not a case a looser pattern should let through.
 
 ---
 
@@ -1239,6 +1261,12 @@ An hourly job rolls raw events into aggregates; dashboards read only aggregates.
 
 **Retention:** raw events 90 days, hourly aggregates 13 months, daily aggregates indefinite.
 
+**Offer/broker leaderboard** — Statistics rolls up every live popup's own summary (the same `views`/`leads`/`interactions` definitions used everywhere else in this section) by its declared `content.offer` and, separately, `content.broker` (§11.3.7). This is a join over popups, not a `raw_events` `GROUP BY` like the referrer/page/country breakdowns above it — offer and broker live on the popup's content, not on any individual event.
+
+**Funnels** — the two templates with a genuine multi-step shape get a step-by-step drop-off view, not just the totals above:
+- `questionnaire` gets its own screen, shown above the existing per-question answer breakdown: Views → Q1 answered → Q2 answered → … → completion CTA clicked. `buildQuestionnaire()` (sdk.js) is a strict wizard — one question at a time, advancing only on an answer — so each question's own answer count is already a valid funnel step, not something requiring a separate "reached this step" event.
+- `gamification` gets a shorter, inline funnel on its own Popup Settings page (no dedicated screen — one popup, one funnel): Views → played (`game_result`, the one event covering pick-and-reveal together) → clicked CTA.
+
 ---
 
 ## 15. A/B testing
@@ -1301,14 +1329,16 @@ Both paths funnel through the same resolution function, so a manual override beh
 
 ### 16.1 Alerts
 
-| Signal | Threshold |
-|---|---|
-| Config fetch error rate | > 1 % over 5 min |
-| SDK JS error rate | > 0.5 % of loads |
-| Impressions drop | > 50 % vs. same hour last week |
-| Lead forward failures | any `dead` status |
-| Publish failure | any |
-| Unusual update rate from source system | > N/hour (§13.3) |
+Delivery is generic and pluggable (`admin/server/lib/alerts.js`): every signal below calls one `notify(signal, message, detail)`, which always logs, and additionally POSTs a Slack-compatible `{text}` payload to `ALERT_WEBHOOK_URL` when that env var is set. Unset, alerts still land in the server log — never silently dropped, never invented (this repo ships no webhook URL of its own; wiring a real Slack/Discord/Teams/generic endpoint is a deployment-time decision).
+
+| Signal | Threshold | Status |
+|---|---|---|
+| Publish failure | any | **Live** — `republish()` (`adminHelpers.js`) alerts on any thrown error from every one of its callers, not a separate check |
+| Unusual update rate from source system | > N/hour (§13.3) | **Live** — fires once per window the moment the ingestion rate limit (§10.4, 120/min/key) is first exceeded, not once per rejected request after |
+| Impressions drop | > 50 % vs. same hour last week | **Live** — `lib/monitor.js`, checked every 15 min. Skips the check (not a false "fine") when there's no data for the comparison hour yet, e.g. a fresh install's first week |
+| SDK JS error rate | > 0.5 % of loads | **Wired, not yet firing** — `lib/monitor.js` checks this every 15 min against `error`-type events, but `sdk.js` doesn't emit that event anywhere yet (§8.3's "emit error beacon" on render throw was specified, not built). The moment that instrumentation lands, this starts alerting on it with no further change here |
+| Config fetch error rate | > 1 % over 5 min | **Not built** — the failure happens before any popup (and so any `impression_id`) exists to attach an event to; `raw_events` is impression-scoped by schema (§14.1), so this needs either a schema change or a separate un-scoped beacon path, not a quick addition alongside the signal above |
+| Lead forward failures | any `dead` status | **Retired** — moot since §9's rewrite: this platform doesn't forward leads anywhere anymore, registration goes straight to llLanding (§9.1), so there's no forwarding step left to fail |
 
 ### 16.2 Runbook
 
@@ -1324,7 +1354,7 @@ Both paths funnel through the same resolution function, so a manual override beh
 | Security | XSS payload corpus in every content field; ReDoS patterns; signature replay |
 | Unit | Rule evaluation, frequency caps, schema validation, URL rejection |
 | Integration | Ingestion → DB → bundle → render, end to end |
-| Accessibility | axe-core in CI; manual keyboard pass per template |
+| Accessibility | **Landed**: axe-core runs against every template in `test.js` (via `renderInline()`'s open shadow root — a closed one, same as `show()` uses, can't be audited from outside at all) and in CI (`.github/workflows/ci.yml`) on every push. `color-contrast` is excluded — jsdom doesn't compute real used-value backgrounds, so that rule would only ever produce false results — leaving it a manual, real-browser check, same as the keyboard pass per template |
 | Visual | Screenshot diffs: 4 templates × 3 breakpoints |
 | Browser | Chrome, Safari, Firefox, Edge (current + 1); iOS Safari, Android Chrome |
 

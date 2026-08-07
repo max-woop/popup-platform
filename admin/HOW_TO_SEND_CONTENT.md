@@ -116,6 +116,7 @@ blip is always safe.
 | `401` | Bad signature or clock skew | Recheck secret/timestamp/path — see §2 |
 | `409` | `Idempotency-Key` reused with a different body | You reused a key for a genuinely different request — use a new key, or confirm the body matches what you sent before |
 | `422` | Semantically invalid (e.g. `ends_at` before `starts_at`) | Fix the logic error named in `details`, retry |
+| `429` | More than 120 requests from your key in the last 60s | Back off and retry after the window rolls over — this is a per-key sliding window, not a hard daily cap |
 
 `400`/`422` bodies are always field-level, so you can act on them without
 guessing:
@@ -233,9 +234,11 @@ it can't drift from what the API actually accepts.
 | `theme` | one of the 18 canonical names — see below | all seven | — |
 | `show_logo` | boolean, default `false` | all seven | — |
 | `offer` | string, ≤80 chars — free-text campaign/offer label, shown as its own column on the admin Popups list | all seven | — |
-| `broker` | one of `"libertex.com"`, `"libertex.org"`, `"fxclub.org"`, `"lbx.com"` | all seven | — |
+| `broker` | one of `"libertex.com"`, `"libertex.org"`, `"fxclub.org"`, `"lbx.com"` — same domain keys the `entity_domains`/`registration_domains` registries use, not an independent label (§11.3.7) | all seven | ✓ on `modal_form`/`modal_form_media` only |
 | `shape` | `"auto"` \| `"square"`, default `"auto"` | `modal` | — |
 | `position` | `"top"` \| `"bottom"`, default `"top"` | `banner` | — |
+| `countdown` | boolean, default `false` — formats this popup's own top-level `ends_at` into a live countdown next to the CTA | `banner`, `modal`, `modal_media` | requires top-level `ends_at` to be set — `422` otherwise |
+| `proof_text` | string, ≤80 chars — a short trust line rendered as-is next to the CTA (`"140 accounts opened this week"`), never a live count this platform computes | `modal`, `modal_media` | — |
 | `legal` | object — see **Legal modes** below | all seven | — (defaults to `{ "mode": "auto" }`) |
 | `overrides` | object, one key per device — see below | all seven | — |
 | `questions` | array, 1–3 items | `questionnaire` | ✓ |
@@ -269,9 +272,21 @@ is `modal` with one field added.
 The API rejects that combination with a `422` regardless of who's sending
 the request — the flagship brand's risk warning isn't a per-popup choice
 the way it is for other brokers. This is enforced independently of the
-registry-based resolution `auto` mode does by hostname (§11.3.2/§11.3.3);
-`broker` is a declared label on the popup itself, not derived from
-targeting rules or the visitor's actual host.
+registry-based resolution `auto` mode does by hostname (§11.3.2/§11.3.3).
+
+**`broker` is declared by you, but no longer just trusted (spec §11.3.7).**
+`libertex.com`/`libertex.org`/`fxclub.org`/`lbx.com` are the exact same
+domain keys the `entity_domains`/`registration_domains` registries already
+use — `broker` and "entity" are one concept, not two independent axes — so
+whatever you declare gets checked against the registries, twice: at
+ingestion (this endpoint), and again by the SDK at the moment a real
+visitor would actually see the popup. A popup only ever renders where the
+visitor's own resolved entity matches the entity your declared `broker`
+resolves to; a targeting mistake that lets a popup reach the wrong domain
+now fails safe (no render) instead of showing broker-mismatched content.
+`modal_form`/`modal_form_media` feel this most directly, since a mismatch
+there would otherwise mean embedding one broker's registration widget
+under another broker's popup.
 
 **`overrides`** (per-device content swaps): `{ "mobile": {...}, "tablet": {...}, "desktop": {...} }`,
 each a subset of `{ hidden, heading, body, image_url }`. `legal` cannot
@@ -352,6 +367,19 @@ grouped near the top, CTA and legal pinned to the bottom edge:
 wordmark, colour-adaptive to the theme — it renders nothing on `lbx-*`
 themes, since no real LBX logo asset exists yet.
 
+Add `"countdown": true` (needs a top-level `ends_at` — `422` without one)
+and `"proof_text"` for an urgency variant — both render next to the CTA,
+countdown first:
+```json
+{ "heading": "Flash sale", "cta_label": "Buy", "cta_url": "https://libertex.com/x",
+  "theme": "white", "countdown": true, "proof_text": "140 accounts opened this week",
+  "ends_at": "2026-08-10T00:00:00Z", "legal": { "mode": "auto" } }
+```
+Note `ends_at` is a **top-level** field alongside `template_id`/`status`
+(see step 3's example above), not inside `content` — `countdown` just
+formats whatever it's already set to, live, ticking once a second for as
+long as the popup stays open. `modal_media` accepts both the same way.
+
 ### `modal_media`
 ```json
 { "heading": "Markets move fast", "body": "Open an account in minutes.",
@@ -366,24 +394,39 @@ how trustworthy the host looks.
 ### `modal_form` (registration)
 ```json
 { "heading": "Open a live account", "body": "Registration takes under two minutes.",
-  "cta_label": "Create account", "theme": "white", "legal": { "mode": "auto" } }
+  "cta_label": "Create account", "theme": "white", "broker": "libertex.com",
+  "legal": { "mode": "auto" } }
 ```
-`heading` required. **That's the whole schema** — no `fields`, no
-`forward_to`. The actual form (which inputs, CAPTCHA, consent wording) is
-resolved centrally per domain, not authored per popup; see spec §9 if you
-need to add or change a domain's registration widget, that's a different,
-Compliance-involved change, not something this endpoint controls.
+`heading` **and `broker` required** — unlike every other template, where
+`broker` is optional. Beyond the required check, `broker` is validated
+against the registration-widget registry: a broker with no configured
+widget yet (currently `fxclub.org`/`lbx.com` — see spec §9.3) is rejected
+with a `422` naming the field, not accepted and left to silently
+fail-safe-suppress for real visitors later. **That's otherwise the whole
+schema** — no `fields`, no `forward_to`. The actual form (which inputs,
+CAPTCHA, consent wording) is resolved centrally per domain, not authored
+per popup; see spec §9 if you need to add or change a domain's
+registration widget, that's a different, Compliance-involved change, not
+something this endpoint controls.
+
+**`broker` isn't just a label here.** It has to resolve to the same entity
+as whatever domain the popup actually ends up shown on (spec §11.3.7) — a
+`libertex.org`-broker form popup will never render for a `libertex.com`
+visitor, even if `targeting` would otherwise match. Point `broker` at
+whichever domain this campaign is actually for.
 
 ### `modal_form_media`
 ```json
 { "heading": "Open a live account", "body": "Registration takes under two minutes.",
   "image_url": "https://cdn.libertex.com/promo/registration-hero.webp", "image_alt": "Trading dashboard on a laptop",
-  "cta_label": "Create account", "theme": "white", "legal": { "mode": "auto" } }
+  "cta_label": "Create account", "theme": "white", "broker": "libertex.com",
+  "legal": { "mode": "auto" } }
 ```
-`modal_form` with one field added — `heading` required, `image_url`/
-`image_alt` optional (omit them and it renders exactly like `modal_form`).
-Same fail-safe, same centrally-resolved form: everything in `modal_form`'s
-section above applies here too.
+`modal_form` with one field added — `heading` and `broker` required (same
+as `modal_form`, see above), `image_url`/`image_alt` optional (omit them
+and it renders exactly like `modal_form`). Same fail-safe, same
+centrally-resolved form: everything in `modal_form`'s section above
+applies here too.
 
 ### `questionnaire`
 ```json

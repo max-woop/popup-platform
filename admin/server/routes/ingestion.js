@@ -9,13 +9,15 @@
 const express = require('express');
 const crypto = require('crypto');
 const sqliteStore = require('../lib/sqliteStore');
-const { verifyIngestAuth } = require('../lib/hmacAuth');
+const store = require('../lib/store');
+const { verifyIngestAuth, rateLimitIngest } = require('../lib/hmacAuth');
 const { validateUpsertBody, validateSemantics } = require('../lib/ingestSchemas');
 const statsAggregate = require('../lib/statsAggregate');
 const { popupDetail, republish } = require('../lib/adminHelpers');
 
 const router = express.Router();
 router.use(verifyIngestAuth);
+router.use(rateLimitIngest);
 
 function computeBodyHash(rawBody) {
   return crypto.createHash('sha256').update(rawBody || '').digest('hex');
@@ -47,7 +49,8 @@ router.put('/popups/:external_id', function (req, res) {
   if (!shape.ok) {
     return respond(400, { error: 'validation_failed', details: shape.details });
   }
-  const semantics = validateSemantics(body);
+  const registries = store.load();
+  const semantics = validateSemantics(body, { entity_domains: registries.entity_domains, registration_domains: registries.registration_domains });
   if (!semantics.ok) {
     return respond(422, { error: 'semantically_invalid', details: semantics.details });
   }

@@ -168,6 +168,32 @@ function Overview() {
   );
 }
 
+// Rolls up by content.offer / content.broker (§11.3.7) rather than by
+// individual popup — "which offer converts best, and does that hold
+// across brokers" is a cut across popups the per-popup Statistics card
+// below can't answer on its own. Reuses BreakdownTable as-is: the
+// {label, views, interactions, conv_rate} shape lines up exactly with
+// what it already renders for countries/referrers/pages above.
+function Leaderboard() {
+  const [range, setRange] = useState(30);
+  const [data, setData] = useState(null);
+
+  useEffect(() => { api.statsLeaderboard({ range }).then(setData); }, [range]);
+
+  return (
+    <Card title="Offer / broker leaderboard" subtitle="Every live popup rolled up by its declared offer and broker — same views/interactions/conv. rate definitions as the rest of this page."
+      right={<PillToggle options={RANGES} value={range} onChange={setRange} labelFor={(r) => r + 'd'} />}>
+      {!data && <Text color="muted">Loading…</Text>}
+      {data && (
+        <Pane display="flex" flexDirection="column" gap={16}>
+          <BreakdownTable title="By offer" icon="🏷️" rows={data.by_offer} />
+          <BreakdownTable title="By broker" icon="🏦" rows={data.by_broker} />
+        </Pane>
+      )}
+    </Card>
+  );
+}
+
 function DeviceBars({ byDevice }) {
   const entries = Object.entries(byDevice);
   const max = Math.max(1, ...entries.map(([, v]) => v));
@@ -204,6 +230,7 @@ export default function Statistics() {
   return (
     <Pane display="flex" flexDirection="column" gap={16}>
       <Overview />
+      <Leaderboard />
 
       <Card title="Statistics" subtitle="Per-popup metrics by date range and device."
         right={

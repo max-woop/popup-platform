@@ -32,6 +32,29 @@ async function request(path, options = {}) {
   return body;
 }
 
+// Deliberately not request() — a multipart body needs the browser to set
+// Content-Type itself (with the boundary it generates), which request()'s
+// hardcoded 'application/json' header would break.
+async function uploadFile(path, file) {
+  const identity = currentIdentity();
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api' + path, {
+    method: 'POST',
+    headers: { 'X-Lx-Role': identity.role, 'X-Lx-Actor': identity.email },
+    body: form
+  });
+  const isJson = (res.headers.get('content-type') || '').includes('application/json');
+  const body = isJson ? await res.json() : await res.text();
+  if (!res.ok) {
+    const err = new Error((body && body.message) || (body && body.error) || 'upload_failed');
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
+  return body;
+}
+
 export const api = {
   identities: IDENTITIES,
   currentIdentity,
@@ -41,18 +64,22 @@ export const api = {
     get: (id) => request('/popups/' + id),
     update: (id, patch) => request('/popups/' + id, { method: 'PATCH', body: JSON.stringify(patch) }),
     pause: (id) => request('/popups/' + id + '/pause', { method: 'POST' }),
-    archive: (id) => request('/popups/' + id, { method: 'DELETE' })
+    archive: (id) => request('/popups/' + id, { method: 'DELETE' }),
+    duplicate: (id) => request('/popups/' + id + '/duplicate', { method: 'POST' })
   },
 
   urlTester: (payload) => request('/url-tester', { method: 'POST', body: JSON.stringify(payload) }),
 
   stats: (params) => request('/stats?' + new URLSearchParams(params).toString()),
   statsOverview: (params) => request('/stats/overview?' + new URLSearchParams(params).toString()),
+  statsLeaderboard: (params) => request('/stats/leaderboard?' + new URLSearchParams(params).toString()),
 
   questionnaire: {
     popups: () => request('/questionnaire-popups'),
     stats: (popupId) => request('/questionnaire-stats?' + new URLSearchParams({ popup_id: popupId }).toString())
   },
+
+  gamificationFunnel: (popupId) => request('/gamification-funnel?' + new URLSearchParams({ popup_id: popupId }).toString()),
 
   legalTexts: {
     get: () => request('/legal-texts'),
@@ -79,5 +106,9 @@ export const api = {
   experiments: {
     list: () => request('/experiments'),
     resolve: (group, winnerId) => request('/experiments/' + group + '/resolve', { method: 'POST', body: JSON.stringify({ winner_id: winnerId }) })
+  },
+
+  uploads: {
+    image: (file) => uploadFile('/uploads', file)
   }
 };

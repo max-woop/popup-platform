@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const store = require('./store');
 const publisher = require('./publisher');
+const alerts = require('./alerts');
 
 // Simulated identity (§10.4: real deployment uses corporate SSO/OIDC with
 // Viewer/Operator roles, plus Compliance for the legal registry per §11.3.6).
@@ -60,6 +61,19 @@ function popupDetail(p) {
   return Object.assign({}, p, { id: p.external_id });
 }
 
-function republish() { return publisher.publish(store.load()); }
+// §16.1's alert table lists "Publish failure | any" — every caller here
+// already treats a thrown republish() as the request failing (nothing
+// catches it before this), so the behavior a caller sees is unchanged;
+// what's new is that the failure is now also durable and visible outside
+// whichever one request happened to trigger it, instead of only showing up
+// as a 500 in one admin's browser tab.
+function republish() {
+  try {
+    return publisher.publish(store.load());
+  } catch (e) {
+    alerts.notify('publish_failure', 'republish() failed: ' + e.message, { stack: e.stack });
+    throw e;
+  }
+}
 
 module.exports = { requireRole, audit, popupSummary, popupDetail, republish };
