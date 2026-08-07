@@ -9,6 +9,7 @@ admin/server/data/db.json
 admin/server/data/ingestion.db
 admin/server/data/ingestion.db-shm
 admin/server/data/ingestion.db-wal
+admin/server/data/uploads/
 
 # Editor/OS
 .DS_Store

@@ -1,0 +1,32 @@
+name: CI
+
+# Runs the same two checks a human is expected to run locally before every
+# commit (see README.md / PROJECT_STATUS.md's own run instructions) — the
+# §8.1 SDK gzip budget gate (build.js) and the 36-check Phase 0 suite
+# (test.js) — automatically, so neither depends on someone remembering.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Build SDK + admin (fails the build if the §8.1 20KB gzip budget is exceeded)
+        run: npm run build
+
+      - name: Run the Phase 0 test suite (§16.3)
+        run: npm test

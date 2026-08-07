@@ -134,6 +134,21 @@
     return Object.prototype.hasOwnProperty.call(map, host) ? map[host] : null;
   }
 
+  /* content.broker (§11.3.2/§15) uses the same domain keys entity_domains
+     is keyed by — "broker" and "entity" are one concept, not two — so a
+     declared broker resolves to an entity exactly like a hostname does.
+     A popup whose declared broker's entity doesn't match the *visitor's*
+     resolved entity never renders: without this, a targeting mistake could
+     put a libertex.org-broker popup (registration form included, built on
+     libertex.org's own widget credentials — resolveRegistrationConfig
+     below) in front of a libertex.com visitor, or vice versa. No broker
+     declared means no check — existing broker-less popups are unaffected. */
+  function brokerMismatch(config, content, entity) {
+    if (!content.broker) return false;
+    var brokerEntity = resolveEntity(config, content.broker);
+    return !brokerEntity || brokerEntity !== entity;
+  }
+
   /* ---------------------------------------------------- legal  (§11.3.3) */
 
   /* Returns { text } to render, { text: null } when Compliance has marked the
@@ -448,6 +463,34 @@
     } catch (e) { return null; }
   }
 
+  /* content.countdown (banner/modal/modal_media, §5.1) formats the popup's
+     own top-level ends_at — never a second, separate deadline field, so a
+     countdown can never say something targeting/frequency's own schedule
+     check (§6.2) doesn't already agree with. null past expiry rather than
+     "00:00:00" or a negative value — show()'s ticking interval (§8.2)
+     reads that as "stop, clear the text." */
+  function formatCountdown(ms) {
+    if (ms <= 0) return null;
+    var s = Math.floor(ms / 1000);
+    var d = Math.floor(s / 86400); s -= d * 86400;
+    var h = Math.floor(s / 3600); s -= h * 3600;
+    var m = Math.floor(s / 60); s -= m * 60;
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    return (d > 0 ? d + 'd ' : '') + pad(h) + ':' + pad(m) + ':' + pad(s);
+  }
+
+  // Static text only — show() is what makes a real, triggered popup's
+  // countdown actually tick; renderInline()'s static preview stops here,
+  // deliberately (a gallery card ticking down is noise, not signal).
+  function buildCountdown(popup, content) {
+    if (!content.countdown || !popup.ends_at) return null;
+    var text = formatCountdown(Date.parse(popup.ends_at) - Date.now());
+    if (!text) return null;
+    var p = el('p', 'lx-countdown');
+    p.textContent = text;
+    return p;
+  }
+
   /* The real Libertex logo/symbol artwork, from the brand's own supplied
      SVG files (Logo Black/White, Symbol Orange/White) — background rects
      stripped so it renders transparent over any surface, path data run
@@ -558,6 +601,9 @@
       wrap.appendChild(b);
     }
 
+    var countdown = buildCountdown(popup, content);
+    if (countdown) wrap.appendChild(countdown);
+
     var href = safeUrl(content.cta_url);
     if (href && content.cta_label) {
       var cta = el('a', 'lx-cta');
@@ -569,6 +615,12 @@
       cta.appendChild(arrow);
       cta.dataset.lxCta = '1';
       wrap.appendChild(cta);
+    }
+
+    if (content.proof_text) {
+      var proof = el('p', 'lx-proof');
+      proof.textContent = content.proof_text;
+      wrap.appendChild(proof);
     }
 
     panel.appendChild(wrap);
@@ -594,6 +646,8 @@
     h.id = headingId;
     h.textContent = content.heading || '';
     wrap.appendChild(h);
+    var bannerCountdown = buildCountdown(popup, content);
+    if (bannerCountdown) wrap.appendChild(bannerCountdown);
     bar.appendChild(wrap);
 
     var href = safeUrl(content.cta_url);
@@ -1322,6 +1376,12 @@
     opts = opts || {};
     var content = resolveContent(popup, engine.ctx.device);
     var entity = resolveEntity(engine.config, location.hostname);
+
+    if (brokerMismatch(engine.config, content, entity)) {
+      log('SUPPRESSED — broker/host mismatch', { popup: popup.id, broker: content.broker, host: location.hostname, entity: entity });
+      return false;
+    }
+
     var legal = resolveLegal(engine.config, popup, entity, engine.ctx.country, engine.ctx.locale);
 
     // Fail-safe: no resolvable warning → render nothing at all (§11.3.3).
@@ -1366,6 +1426,19 @@
       shadow.appendChild(container);
     }
 
+    /* buildCountdown() (above) only ever renders the static text a static
+       preview needs — renderInline() stops there. A real, triggered popup
+       additionally ticks it once a second, cleared in destroy() below
+       alongside every other per-instance cleanup; the countdown itself
+       still never invents a deadline; it only ever formats popup.ends_at,
+       the same field frequency/targeting already enforce (§6.2). */
+    var countdownEl = built.panel.querySelector('.lx-countdown');
+    var countdownTimer = countdownEl ? setInterval(function () {
+      var text = formatCountdown(Date.parse(popup.ends_at) - Date.now());
+      if (text) countdownEl.textContent = text;
+      else { clearInterval(countdownTimer); countdownEl.textContent = ''; }
+    }, 1000) : null;
+
     /* §9.5 — the registration form is the one light-DOM exception to this
        popup's otherwise full Shadow DOM isolation. It's a real child of
        `host`, projected into the shadow tree's <slot>, so llLanding's own
@@ -1384,6 +1457,7 @@
     function destroy() {
       if (instance.destroyed) return;
       instance.destroyed = true;
+      if (countdownTimer) clearInterval(countdownTimer);
       release();
       if (!isBanner) document.body.style.overflow = priorOverflow;
       if (host.parentNode) host.parentNode.removeChild(host);
@@ -1706,9 +1780,16 @@
       var content = resolveContent(popup, device);
       var entity = resolveEntity(config, location.hostname);
       var dl = settings.dataLayer || {};
-      var legal = resolveLegal(config, popup, entity, dl.country, dl.language);
 
       container.textContent = '';
+      if (brokerMismatch(config, content, entity)) {
+        var brokerSuppressed = el('p');
+        brokerSuppressed.textContent = 'Suppressed — content.broker doesn\'t resolve to this host\'s entity (§11.3.2).';
+        container.appendChild(brokerSuppressed);
+        return;
+      }
+
+      var legal = resolveLegal(config, popup, entity, dl.country, dl.language);
       if (legal === null) {
         var suppressed = el('p');
         suppressed.textContent = 'Suppressed — no legal text resolves for this host/entity (§11.3.3).';

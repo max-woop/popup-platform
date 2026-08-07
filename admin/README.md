@@ -16,10 +16,14 @@ admin/
             kept outside data/ so it survives a Railway Volume mounted there).
             index.js just wires an Express app together — the actual routes
             live one file per resource in routes/ (popups, targeting, stats,
-            registration, legalTexts, settings, ingestion), sharing
-            requireRole/audit/popupSummary/popupDetail/republish from
-            lib/adminHelpers.js. scripts/test-admin-api.js smoke-tests all of
-            it; scripts/test-ingest.js covers /v1 specifically.
+            registration, legalTexts, settings, ingestion, experiments §15,
+            uploads §12.2), sharing requireRole/audit/popupSummary/
+            popupDetail/republish from lib/adminHelpers.js. Two things run
+            on a timer rather than per-request: lib/experiments.js resolves
+            due A/B tests, lib/monitor.js checks the two rate-over-a-window
+            alert signals (§16.1) — both setInterval, both also run once at
+            boot. scripts/test-admin-api.js smoke-tests all of it;
+            scripts/test-ingest.js covers /v1 specifically.
   web/      React (Vite) admin UI — one screen per §12 row.
 ```
 

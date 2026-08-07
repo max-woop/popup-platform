@@ -26,6 +26,20 @@ router.post('/registration-domains', requireRole('compliance-only'), function (r
       details: [{ path: 'host|entity|script_src|api_key', message: 'required' }]
     });
   }
+  // entity_domains is the registry of record for "which entity owns this
+  // host" (§11.3.2) — registration_domains carries its own copy of the same
+  // fact only because the widget config needs it inline, not because it's
+  // free to disagree. A host entity_domains already maps elsewhere can't be
+  // re-declared under a different entity here; that's exactly the drift
+  // content.broker's own validateSemantics() check (ingestSchemas.js) is
+  // trying to catch from the other direction.
+  const knownEntity = db.entity_domains[body.host];
+  if (knownEntity && knownEntity !== body.entity) {
+    return res.status(422).json({
+      error: 'validation_failed',
+      details: [{ path: 'entity', message: '"' + body.host + '" already maps to entity "' + knownEntity + '" in entity_domains — a registration widget can\'t disagree with the legal-entity mapping for the same host' }]
+    });
+  }
   const before = db.registration_domains[body.host] || null;
   const entry = {
     entity: body.entity,

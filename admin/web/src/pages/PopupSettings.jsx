@@ -7,6 +7,7 @@ import { api } from '../lib/api';
 import { StatusBadge } from '../components/StatusBadge.jsx';
 import { Card } from '../components/Card.jsx';
 import { Chip } from '../components/Chip.jsx';
+import { FunnelChart } from '../components/FunnelChart.jsx';
 import { useRole } from '../lib/RoleContext.jsx';
 
 const ACCENT = '#FF4C0B';
@@ -52,7 +53,7 @@ const CONTENT_FIELD_LABELS = {
   heading: 'Heading', subheading: 'Subheading', body: 'Body', theme: 'Theme',
   show_logo: 'Show logo', shape: 'Shape', position: 'Position',
   image_url: 'Image', image_alt: 'Image alt text',
-  offer: 'Offer', broker: 'Broker',
+  offer: 'Offer', broker: 'Broker', countdown: 'Countdown', proof_text: 'Social proof',
   duration_ms: 'Duration (ms)', volatility_pct: 'Volatility', win_body: 'Win message', lose_body: 'Lose message'
 };
 // Rendered elsewhere on this page (CTA fields above; legal has its own
@@ -150,6 +151,8 @@ export default function PopupSettings() {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
   const canOperate = identity.role === 'operator' || identity.role === 'compliance';
   const canCustomLegal = identity.role === 'compliance';
 
@@ -170,6 +173,24 @@ export default function PopupSettings() {
       obj[keys[keys.length - 1]] = value;
       return next;
     });
+  }
+
+  // Fills content.image_url with the uploaded file's URL — doesn't save by
+  // itself, same as typing into the field directly; "Save changes" below
+  // still owns persisting it, so an upload can be reviewed/swapped before
+  // it's committed to the popup.
+  async function uploadImage(file) {
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const result = await api.uploads.image(file);
+      setField('content.image_url', result.url);
+    } catch (e) {
+      setUploadError(e.message);
+    } finally {
+      setUploading(false);
+    }
   }
 
   function toggleDevice(device) {
@@ -329,6 +350,7 @@ export default function PopupSettings() {
           </Card>
 
           {popup.experiment && <ExperimentCard group={popup.experiment.group} canOperate={canOperate} />}
+          {popup.template === 'gamification' && <GamificationFunnelCard popupId={popup.id} />}
 
           <LegalCard legal={legal} canOperate={canOperate} canCustomLegal={canCustomLegal}
             lockedOn={popup.content.broker === 'libertex.com'}
@@ -357,9 +379,35 @@ export default function PopupSettings() {
             {IMAGE_CAPABLE_TEMPLATES.has(popup.template) && (
               <>
                 <EditableKvRow label="Image URL">
-                  <TextInput width="100%" disabled={!canOperate} placeholder="https://cdn.libertex.com/…"
-                    value={popup.content.image_url || ''}
-                    onChange={(e) => setField('content.image_url', e.target.value)} />
+                  <Pane display="flex" gap={8} alignItems="center">
+                    <TextInput width="100%" disabled={!canOperate} placeholder="https://cdn.libertex.com/…"
+                      value={popup.content.image_url || ''}
+                      onChange={(e) => setField('content.image_url', e.target.value)} />
+                    {canOperate && (
+                      <>
+                        <Button
+                          size="small"
+                          disabled={uploading}
+                          is="label"
+                          htmlFor="lx-image-upload-input"
+                          cursor={uploading ? 'default' : 'pointer'}
+                        >
+                          {uploading ? 'Uploading…' : 'Upload'}
+                        </Button>
+                        <input
+                          id="lx-image-upload-input"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          style={{ display: 'none' }}
+                          onChange={(e) => { uploadImage(e.target.files[0]); e.target.value = ''; }}
+                        />
+                      </>
+                    )}
+                  </Pane>
+                  {uploadError && <Text size={300} color="danger" marginTop={4} display="block">{uploadError}</Text>}
+                  <Text size={300} color="muted" marginTop={4} display="block">
+                    Upload replaces this field's value with the new file's URL — still needs Save changes below. JPEG/PNG/WEBP/GIF, up to 5MB.
+                  </Text>
                 </EditableKvRow>
                 <EditableKvRow label="Image alt text">
                   <TextInput width="100%" disabled={!canOperate} placeholder="Describe the image"
@@ -464,6 +512,27 @@ function ExperimentCard({ group, canOperate }) {
           Resolved — only the winning variant is still live; the rest were paused, not deleted.
         </Text>
       )}
+    </Card>
+  );
+}
+
+// gamification's own, shorter funnel (§5.5) — no dedicated stats screen the
+// way questionnaires get (Questionnaires.jsx): one popup, one funnel, so
+// inline on its own Settings page is all the navigation this needs.
+function GamificationFunnelCard({ popupId }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.gamificationFunnel(popupId).then(setData).catch((e) => setError(e.message));
+  }, [popupId]);
+
+  if (error) return null; // quiet failure — this card is supplementary, not core to the page
+  if (!data) return null;
+
+  return (
+    <Card title="Funnel" subtitle="Views → played → clicked (§5.5) — the same three counts Statistics shows for this popup, laid out as a funnel.">
+      <FunnelChart steps={data.funnel} />
     </Card>
   );
 }

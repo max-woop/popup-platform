@@ -300,6 +300,7 @@
 .lx-banner[data-position="bottom"] { bottom: 0; animation: lx-slide-up   var(--lx-duration) var(--lx-ease); }
 .lx-banner .lx-body { margin: 0; }
 .lx-banner .lx-content { flex: 1 1 260px; }
+.lx-banner .lx-countdown { margin: 0; }
 
 /* --- Logo (§4.7.3) ------------------------------------------------------- */
 .lx-logo { display: block; margin-bottom: calc(var(--lx-space) * 4); }
@@ -383,6 +384,30 @@
 .lx-cta:active { transform: translateY(0); }
 .lx-cta-arrow  { width: 16px; height: 16px; flex: none; }
 .lx-cta:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* A trust line, not a warning — deliberately far from .lx-legal's mono/
+   uppercase/bordered treatment so it never reads as a compliance notice. */
+.lx-proof {
+  margin: calc(var(--lx-space) * 2) 0 0;
+  font-family: var(--lx-font);
+  font-size: var(--lx-size-label);
+  line-height: var(--lx-leading-body);
+  opacity: .7;
+}
+
+/* Urgency, not alarm — the accent colour already means "act now" via the
+   CTA itself (--cta-bg), so reusing it here rather than inventing a fourth
+   "urgent" colour outside the approved palette (§4.2). tabular-nums keeps
+   digit width stable so the line doesn't visibly jitter once a second. */
+.lx-countdown {
+  margin: 0 0 calc(var(--lx-space) * 3);
+  font-family: var(--lx-font-mono);
+  font-weight: var(--lx-mono-weight);
+  font-size: var(--lx-size-label);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--lx-tracking-tag);
+  color: var(--cta-bg);
+}
 
 /* --- Form (§9) ------------------------------------------------------------ */
 /* modal_form embeds the existing llLanding registration widget (§9.1) — its

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Pane, Text, Select, Alert } from 'evergreen-ui';
 import { api } from '../lib/api';
 import { Card } from '../components/Card.jsx';
+import { FunnelChart } from '../components/FunnelChart.jsx';
 
 const ACCENT = '#FF4C0B';
 
@@ -66,8 +67,16 @@ export default function Questionnaires() {
       {popups && popups.length > 0 && !stats && <Text color="muted">Loading…</Text>}
 
       {stats && (
-        <Pane display="flex" flexDirection="column" gap={16}>
-          {stats.questions.map((q) => <QuestionCard key={q.question_id} question={q} />)}
+        <Pane display="flex" flexDirection="column" gap={24}>
+          <Pane border="1px solid #E7E2DF" borderRadius={14} padding={16}>
+            <Text size={300} fontWeight={600} display="block" marginBottom={12}>
+              Funnel — where visitors drop off
+            </Text>
+            <FunnelChart steps={stats.funnel} />
+          </Pane>
+          <Pane display="flex" flexDirection="column" gap={16}>
+            {stats.questions.map((q) => <QuestionCard key={q.question_id} question={q} />)}
+          </Pane>
         </Pane>
       )}
     </Card>

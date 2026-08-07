@@ -95,4 +95,40 @@ function siteOverview(days) {
   };
 }
 
-module.exports = { aggregateForPopup, siteOverview };
+// Rolls up every non-archived popup's own event summary by its declared
+// content.offer / content.broker (§11.3.7 — the same fields, both now
+// real content on every template), not a raw_events GROUP BY like
+// siteOverview's referrer/page/country breakdowns above — offer and
+// broker live on the popup's content, not on any individual event, so
+// this joins popup-by-popup instead. Reuses popupEventSummary (already
+// built for A/B testing's own standings, lib/experiments.js) rather than
+// a third definition of views/leads/interactions.
+function leaderboard(days) {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const popups = sqliteStore.listPopups().filter((p) => p.status !== 'archived');
+
+  function groupBy(keyFn) {
+    const groups = {};
+    popups.forEach((p) => {
+      const key = keyFn(p);
+      if (!key) return; // no offer/broker declared — nothing to attribute this popup's traffic to
+      const summary = sqliteStore.popupEventSummary(p.external_id, since);
+      if (!groups[key]) groups[key] = { label: key, popups: 0, views: 0, leads: 0, interactions: 0 };
+      groups[key].popups += 1;
+      groups[key].views += summary.views;
+      groups[key].leads += summary.leads;
+      groups[key].interactions += summary.interactions;
+    });
+    return Object.values(groups)
+      .map((g) => Object.assign({}, g, { conv_rate: g.views ? round(g.interactions / g.views) : 0 }))
+      .sort((a, b) => b.conv_rate - a.conv_rate);
+  }
+
+  return {
+    range_days: days,
+    by_offer: groupBy((p) => p.content && p.content.offer),
+    by_broker: groupBy((p) => p.content && p.content.broker)
+  };
+}
+
+module.exports = { aggregateForPopup, siteOverview, leaderboard };

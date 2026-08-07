@@ -11,6 +11,7 @@ const { JSDOM } = require('jsdom');
 
 const SDK = fs.readFileSync(path.join(__dirname, 'dist', 'sdk.js'), 'utf8');
 const CONFIG = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
+const AXE = fs.readFileSync(path.join(__dirname, 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
 
 let pass = 0, fail = 0;
 const failures = [];
@@ -25,8 +26,12 @@ function group(name) { console.log(`\n${name}`); }
 /* Boot the SDK inside a jsdom page at a given hostname with a given config.
    localStorageSeed pre-populates lx_popup_state_v1 before the SDK's own
    boot() runs, so a test can simulate "this is a returning visitor" rather
-   than only ever a fresh one — needed for the A/B persistence check below. */
-function boot({ url = 'https://libertex.com/promo/summer', config = CONFIG, dataLayer = {}, localStorageSeed = null } = {}) {
+   than only ever a fresh one — needed for the A/B persistence check below.
+   spyIntervals wraps setInterval/clearInterval before the SDK loads, so a
+   test can assert the countdown's timer lifecycle (§8.2) without needing
+   DOM access into show()'s closed shadow root, which is the one thing
+   renderInline()'s open one can't stand in for. */
+function boot({ url = 'https://libertex.com/promo/summer', config = CONFIG, dataLayer = {}, localStorageSeed = null, spyIntervals = false } = {}) {
   const dom = new JSDOM(`<!DOCTYPE html><html><body><div style="height:4000px"></div></body></html>`, {
     url,
     pretendToBeVisual: true,
@@ -46,8 +51,16 @@ function boot({ url = 'https://libertex.com/promo/summer', config = CONFIG, data
   win.navigator.sendBeacon = () => true;
   win.AbortController = win.AbortController || class { constructor(){ this.signal = null; } abort(){} };
 
+  const intervalStats = { created: 0, cleared: 0 };
+  if (spyIntervals) {
+    const realSetInterval = win.setInterval.bind(win);
+    const realClearInterval = win.clearInterval.bind(win);
+    win.setInterval = function (fn, ms) { intervalStats.created++; return realSetInterval(fn, ms); };
+    win.clearInterval = function (id) { intervalStats.cleared++; return realClearInterval(id); };
+  }
+
   win.eval(SDK);
-  return { dom, win };
+  return { dom, win, intervalStats };
 }
 
 const settle = (win, ms = 60) => new Promise(r => win.setTimeout(r, ms));
@@ -146,6 +159,55 @@ function rendered(win) {
     win.LxPopup.show('notice-maintenance');
     await settle(win);
     check('mode:off renders even on unmapped host', rendered(win) === 1);
+  }
+
+  /* ------------------------------------------------------------------ */
+  group('Broker/entity consistency (§11.3.7)');
+  {
+    // content.broker uses the same domain keys entity_domains does — a
+    // declared broker that resolves to the *same* entity as the visitor's
+    // hostname must render exactly as it would with no broker declared.
+    const cfg = JSON.parse(JSON.stringify(CONFIG));
+    cfg.popups.find((p) => p.id === 'promo-summer-2026').content.broker = 'libertex.com';
+    const { win } = boot({ url: 'https://libertex.com/quiet', config: cfg });
+    await settle(win);
+    win.LxPopup.show('promo-summer-2026');
+    await settle(win);
+    check('matching broker renders normally', rendered(win) === 1);
+  }
+  {
+    // Declared for .org, visited on .com — different entity. Must suppress
+    // even though legal.mode would otherwise resolve fine on this host.
+    const cfg = JSON.parse(JSON.stringify(CONFIG));
+    cfg.popups.find((p) => p.id === 'promo-summer-2026').content.broker = 'libertex.org';
+    const { win } = boot({ url: 'https://libertex.com/quiet', config: cfg });
+    await settle(win);
+    win.LxPopup.show('promo-summer-2026');
+    await settle(win);
+    check('mismatched broker SUPPRESSES', rendered(win) === 0,
+      'a libertex.org-broker popup rendered for a libertex.com visitor');
+  }
+  {
+    // A broker value with no entity_domains entry at all (schema would
+    // reject this at ingestion — checked here as defence in depth, same
+    // reasoning as the "unknown host" legal test above).
+    const cfg = JSON.parse(JSON.stringify(CONFIG));
+    cfg.popups.find((p) => p.id === 'promo-summer-2026').content.broker = 'not-a-real-broker.example';
+    const { win } = boot({ url: 'https://libertex.com/quiet', config: cfg });
+    await settle(win);
+    win.LxPopup.show('promo-summer-2026');
+    await settle(win);
+    check('unresolvable broker SUPPRESSES', rendered(win) === 0);
+  }
+  {
+    // No broker declared at all — existing, broker-less popups (still the
+    // common case outside modal_form/modal_form_media) must be completely
+    // unaffected by this check.
+    const { win } = boot({ url: 'https://libertex.com/quiet' });
+    await settle(win);
+    win.LxPopup.show('promo-summer-2026');
+    await settle(win);
+    check('no broker declared is unaffected', rendered(win) === 1);
   }
 
   /* ------------------------------------------------------------------ */
@@ -311,6 +373,81 @@ function rendered(win) {
   }
 
   /* ------------------------------------------------------------------ */
+  group('Countdown (§5.1)');
+  {
+    function withCountdownPopup(id, extra, contentExtra) {
+      const cfg = JSON.parse(JSON.stringify(CONFIG));
+      cfg.popups.push(Object.assign({
+        id, template: 'modal', status: 'live', priority: 999,
+        devices: ['desktop', 'tablet', 'mobile'], trigger: { type: 'immediate' }, frequency: {}, targeting: []
+      }, extra, {
+        content: Object.assign({
+          heading: 'Countdown test', theme: 'white', cta_label: 'Go', cta_url: 'https://libertex.com/x',
+          legal: { mode: 'off', off_reason: 'test' }
+        }, contentExtra)
+      }));
+      return cfg;
+    }
+
+    {
+      // renderInline()'s open shadow root is the only way to read the
+      // rendered text at all — show()'s is closed (§8.2) — but the
+      // formatting logic is identical either way, so this is a real check
+      // of it, not a workaround.
+      const futureEnds = new Date(Date.now() + (2 * 86400000 + 3 * 3600000 + 5 * 60000)).toISOString();
+      const cfg = withCountdownPopup('countdown-static', { ends_at: futureEnds }, { countdown: true });
+      const { win } = boot({ config: cfg });
+      await settle(win);
+      const popup = cfg.popups.find((p) => p.id === 'countdown-static');
+      const container = win.document.createElement('div');
+      win.document.body.appendChild(container);
+      win.LxPopup.renderInline(popup, container);
+      await settle(win);
+      const host = container.firstElementChild;
+      const text = host && host.shadowRoot && host.shadowRoot.querySelector('.lx-countdown');
+      check('renders "Nd HH:MM:SS" for a multi-day deadline', !!text && /^2d \d{2}:\d{2}:\d{2}$/.test(text.textContent),
+        text && text.textContent);
+    }
+
+    {
+      const cfg = withCountdownPopup('countdown-off', {}, {}); // no ends_at, no countdown flag
+      const { win, intervalStats } = boot({ url: 'https://libertex.com/quiet', config: cfg, spyIntervals: true });
+      await settle(win);
+      win.LxPopup.show('countdown-off');
+      await settle(win);
+      check('no countdown declared → no timer started', intervalStats.created === 0);
+      win.LxPopup.hide();
+    }
+
+    {
+      // countdown:true but ends_at already passed — buildCountdown() (sdk.js)
+      // returns null past expiry, so there's nothing to tick; must not
+      // start a timer for a deadline that's already gone.
+      const cfg = withCountdownPopup('countdown-expired', { ends_at: new Date(Date.now() - 5000).toISOString() }, { countdown: true });
+      const { win, intervalStats } = boot({ url: 'https://libertex.com/quiet', config: cfg, spyIntervals: true });
+      await settle(win);
+      win.LxPopup.show('countdown-expired');
+      await settle(win);
+      check('already-expired ends_at → no timer started', intervalStats.created === 0);
+      win.LxPopup.hide();
+    }
+
+    {
+      // The real lifecycle check: exactly one timer per shown countdown,
+      // cleared exactly once on dismiss — never leaked, never double-freed.
+      const cfg = withCountdownPopup('countdown-live', { ends_at: new Date(Date.now() + 60000).toISOString() }, { countdown: true });
+      const { win, intervalStats } = boot({ url: 'https://libertex.com/quiet', config: cfg, spyIntervals: true });
+      await settle(win);
+      win.LxPopup.show('countdown-live');
+      await settle(win);
+      check('exactly one timer started for a live countdown', intervalStats.created === 1);
+      win.LxPopup.hide();
+      await settle(win);
+      check('exactly one timer cleared on dismiss', intervalStats.cleared === 1);
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   group('Accessibility (§8.4)');
   {
     const { win, dom } = boot({ url: 'https://libertex.com/quiet' });
@@ -323,6 +460,67 @@ function rendered(win) {
     win.LxPopup.hide();
     await settle(win);
     check('scroll lock released on close', win.document.body.style.overflow !== 'hidden');
+  }
+
+  /* ------------------------------------------------------------------ */
+  group('Automated accessibility audit — axe-core (§16.3)');
+  {
+    // renderInline() (§9's own comment: "for a template gallery / style-
+    // guide page") is used here rather than show() for one structural
+    // reason, not a preference: show() attaches a *closed* shadow root
+    // (§8.2), which axe-core (like any outside script) simply cannot see
+    // into — there'd be nothing to audit. renderInline()'s shadow root is
+    // open specifically so tooling can inspect it, which is exactly what's
+    // needed here.
+    const { win } = boot({ url: 'https://localhost/quiet' });
+    await settle(win);
+    win.eval(AXE);
+
+    const byTemplate = (t) => CONFIG.popups.find((p) => p.template === t);
+    const samples = {
+      banner: byTemplate('banner'),
+      modal: byTemplate('modal'),
+      modal_media: byTemplate('modal_media'),
+      questionnaire: byTemplate('questionnaire'),
+      gamification: byTemplate('gamification'),
+      // Not in config.json (no registration_domains entry there needed one
+      // until now) — minimal, valid popups built the same shape ingestion
+      // would require: broker required (§11.3.7), legal auto-resolvable at
+      // this boot's host.
+      modal_form: {
+        id: 'axe-form', template: 'modal_form', status: 'live',
+        content: { heading: 'Open a live account', broker: 'libertex.com', legal: { mode: 'auto' } }
+      },
+      modal_form_media: {
+        id: 'axe-form-media', template: 'modal_form_media', status: 'live',
+        content: {
+          heading: 'Open a live account', broker: 'libertex.com', legal: { mode: 'auto' },
+          image_url: 'https://cdn.libertex.com/promo/registration-hero.webp', image_alt: 'Trading dashboard on a laptop'
+        }
+      }
+    };
+
+    for (const [template, popup] of Object.entries(samples)) {
+      const container = win.document.createElement('div');
+      win.document.body.appendChild(container);
+      win.LxPopup.renderInline(popup, container);
+      await settle(win);
+
+      const host = container.firstElementChild;
+      if (!host) { check(`${template}: renders (nothing to audit)`, false, 'renderInline produced no host — fail-safe suppressed?'); continue; }
+
+      const results = await win.axe.run(host, {
+        // Colour contrast needs real layout metrics jsdom doesn't compute
+        // (getComputedStyle in jsdom never resolves used values for
+        // background/foreground the way a real renderer does) — every
+        // other rule category still runs. Real-browser contrast is a
+        // visual/manual check per spec §16.3's own testing-priorities
+        // table, not something this harness can honestly automate.
+        rules: { 'color-contrast': { enabled: false } }
+      });
+      check(`${template}: no axe violations`, results.violations.length === 0,
+        results.violations.map((v) => v.id + ' (' + v.nodes.length + ')').join(', '));
+    }
   }
 
   /* ------------------------------------------------------------------ */

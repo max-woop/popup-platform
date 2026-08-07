@@ -40,12 +40,14 @@ router.post('/url-tester', function (req, res) {
       const deviceCheck = targeting.allowedOnDevice(popup, deviceClass);
       const targetingResult = targeting.evaluateTargeting(popup, ctx);
       const legal = targeting.resolveLegal(legalRegistry, popup, entity, ctx.country, ctx.locale);
+      const brokerMismatched = targeting.brokerMismatch(db.entity_domains, popup.content, entity);
 
       const blockers = [];
       if (popup.status !== 'live') blockers.push('popup status is "' + popup.status + '", not live');
       if (!scheduleCheck.ok) blockers.push(scheduleCheck.reason);
       if (!deviceCheck.ok) blockers.push(deviceCheck.reason);
       if (!targetingResult.matched) blockers.push('targeting rules did not match');
+      if (brokerMismatched) blockers.push('content.broker "' + (popup.content && popup.content.broker) + '" does not resolve to this URL\'s entity (§11.3.7)');
       if (legal.suppressed) blockers.push('legal fail-safe suppressed: ' + legal.reason);
 
       // Cookie/HTML-element rules can't be verified for a hypothetical URL —
@@ -64,7 +66,8 @@ router.post('/url-tester', function (req, res) {
         schedule: scheduleCheck,
         device_check: deviceCheck,
         targeting: targetingResult,
-        legal: legal
+        legal: legal,
+        broker_mismatch: brokerMismatched
       };
     })
     .sort(function (a, b) { return b.priority - a.priority; });
