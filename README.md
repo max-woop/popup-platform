@@ -1,6 +1,6 @@
 # Libertex Popup Platform — Phase 0 spike
 
-Runnable proof of the delivery path described in `popup-platform-spec.md` §16.
+Runnable proof of the delivery path described in `popup-platform-spec.md` §17.
 
 Its job is narrow: validate the two integration risks most likely to force a
 design change — **the Tealium loading path** and **CSP compatibility on promo
@@ -22,7 +22,7 @@ Then open <http://localhost:8080>. The harness shows live diagnostics: resolved
 entity, device class, eligible popups, and a one-click fail-safe test.
 
 Also open <http://localhost:8080/templates.html> — a style-guide page showing
-all six templates (§5) side by side with representative content, rendered
+all seven templates (§5) side by side with representative content, rendered
 through the real SDK (`window.LxPopup.renderInline()`, a preview-only API
 that reuses the exact same builders/theme/legal resolution as a real
 triggered popup). Useful for a design review without clicking through
@@ -48,7 +48,7 @@ tokens.css          brand tokens — §4.2, §4.6, §4.7
 sdk.js              the SDK
 config.json         example config with the real CYSEC/FCIL/LBX domain map
 index.html          local test harness with diagnostics
-templates.html      style-guide gallery — all six templates, every theme
+templates.html      style-guide gallery — all seven templates, every theme
 ```
 
 ---
@@ -105,8 +105,9 @@ Entity resolution · legal resolution with fail-safe · path/query/device/
 referrer/datalayer targeting · delay, scroll, and exit-intent triggers ·
 frequency capping and global caps · closed Shadow DOM · safe rendering ·
 focus trap, ESC, scroll lock, reduced motion · batched `sendBeacon` events ·
-kill switch · preview mode · all six templates: `banner` / `modal` /
-`modal_media` / `modal_form` / `questionnaire` / `gamification`.
+kill switch · preview mode · all seven templates: `banner` / `modal` /
+`modal_media` / `modal_form` / `modal_form_media` / `questionnaire` /
+`gamification`.
 `modal_form` embeds the real third-party **llLanding** registration widget
 already live on `libertex.com`/`.org` (§9, rewritten once production form
 code showed the original self-built lead-forwarding design didn't match

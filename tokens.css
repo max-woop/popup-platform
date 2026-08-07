@@ -486,6 +486,27 @@
   letter-spacing: var(--lx-tracking-tag);
   opacity: .7;
 }
+/* Countdown-phase price chart. The polyline's final shape is already the
+   real outcome the instant it's built (renderCountdown fixes closePrice
+   upfront) — this only ever animates the reveal, via stroke-dashoffset, so
+   there's no risk of the drawn line disagreeing with the announced result. */
+.lx-game-chart {
+  display: block;
+  width: 100%;
+  height: 64px;
+  margin: 0 0 calc(var(--lx-space) * 3);
+  overflow: visible;
+}
+.lx-game-chart-line {
+  fill: none;
+  stroke: var(--cta-bg);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  transition: stroke-dashoffset linear;
+}
 .lx-game-direction-row {
   display: flex;
   gap: calc(var(--lx-space) * 3);
@@ -633,4 +654,8 @@
 @media (prefers-reduced-motion: reduce) {
   .lx-backdrop, .lx-panel, .lx-banner { animation: none !important; }
   .lx-cta { transition: none; }
+  /* Both already land at their true end state the instant they're built
+     (buildChart/renderCountdown fix the outcome upfront) — turning the
+     transition off here just removes the animated reveal, not the result. */
+  .lx-game-countdown-fill, .lx-game-chart-line { transition: none; }
 }

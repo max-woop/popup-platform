@@ -343,6 +343,7 @@ Adding a template is a code change and a release. There is deliberately no templ
 | `modal` | Centred modal: heading, subheading, body, CTA; optional `shape: 'square'` (§4.7.2) | No | Promo offers |
 | `modal_media` | Modal with image panel | No | Visual campaigns |
 | `modal_form` | Modal with registration form | **Yes** | Lead capture (§9) |
+| `modal_form_media` | `modal_form` + image panel — `modal_media`'s relationship to `modal`, applied to the form template | **Yes** | Lead capture with a hero image (§9.2) |
 | `questionnaire` | Modal: 1–3 questions, button-only answers, one at a time | No | Preference capture, segmentation, lightweight polling (§5.4) |
 | `gamification` | Modal: Market Prediction Challenge — pick an asset, predict higher/lower, short countdown, reveal | No | Engagement/incentive campaigns (§5.5) |
 
@@ -584,13 +585,15 @@ State in `localStorage` under one namespaced key:
 {
   "v": 1,
   "popups": { "<id>": { "impressions": 2, "dismissed_until": 1756392000 } },
-  "session": { "id": "…", "started": 1753799000, "pageviews": 4 }
+  "session": { "id": "…", "started": 1753799000, "pageviews": 4 },
+  "exp": { "<experiment.group>": "<assigned popup id>" }
 }
 ```
 
 - Per-popup: `max_impressions` per `session` | `day` | `lifetime`; dismissal sets `dismissed_until`.
 - **Global cap: one popup per page view, two per session.** Platform-level, not editable per popup — otherwise every campaign owner sets their own to "always show" and promo pages become unusable.
 - When several match: sort by `priority`, render the first, discard the rest.
+- `exp` records which variant an A/B test assigned this visitor to, so a returning visitor keeps seeing the same one — see §15.2.
 
 `localStorage` rather than cookies: not transmitted, no personal data, and generally a cleaner consent position — but confirm against your consent model (§11).
 
@@ -755,13 +758,37 @@ What replaces them, below, is smaller: two registries (mirroring the legal regis
 
 Same shape as `modal` — no `fields`, no `forward_to`, no `success_action`. The form itself (which inputs exist, their names, the CAPTCHA, the consent wording) is **not campaign content**; it's resolved centrally, the same reasoning §11.3.1 already makes for risk warnings: letting each campaign invent its own registration flow means unreviewed field sets and unreviewed consent copy in production. Centralizing it means Compliance or the team that owns the llLanding integration changes it once.
 
+#### `modal_form_media`
+
+Identical schema, one field added — `modal_media`'s relationship to `modal`, applied here:
+
+```json
+{
+  "type": "object",
+  "required": ["heading"],
+  "additionalProperties": false,
+  "properties": {
+    "heading":    { "type": "string", "maxLength": 80 },
+    "body":       { "type": "string", "maxLength": 400 },
+    "image_url":  { "type": "string", "pattern": "^https://cdn\\.libertex\\..*" },
+    "image_alt":  { "type": "string", "maxLength": 125 },
+    "theme":      { "type": "string" },
+    "show_logo":  { "type": "boolean", "default": false },
+    "legal":      { "$ref": "#/$defs/legal" },
+    "overrides":  { "$ref": "#/$defs/overrides" }
+  }
+}
+```
+
+Still no `cta_url` — the button submits the embedded widget, exactly as in §9.2 above. Shares `buildForm()` in `sdk.js` with `modal_form` (gated on `content.image_url` being present, the same pattern `buildPanel()` already uses to serve both `modal` and `modal_media`), not a second renderer.
+
 ### 9.3 Registration domain registry
 
 Resolved from `location.hostname`, exact match, identical mechanism to §11.3.2's entity resolution — reuses the same `resolveEntity`-shaped function, not a new one:
 
 ```ts
 interface RegistrationConfig {
-  entity: 'cysec' | 'bvi';       // see §17 — "bvi" is what production actually sends
+  entity: 'cysec' | 'bvi';       // see §18 — "bvi" is what production actually sends
   script_src: string;             // e.g. https://lib.libertex.com/landing/js/landing-api.min.2.5.0.js
   api_key: string;
   fields: Array<'email' | 'password' | 'phone'>;  // registration_form is always email+password+consent
@@ -1041,7 +1068,7 @@ The legal slot is **structural, not content**:
 - It is a fixed region in every promotional template, positioned by the template, not by the content payload.
 - Device overrides (§5.3) **cannot** target it — `overrides.<device>` has no legal field, enforced by `additionalProperties: false` in the schema.
 - It cannot be hidden by `overrides.<device>.hidden`, collapsed, or made scrollable-out-of-view.
-- Minimum type size, contrast, and proportion of popup area are set by Compliance (§17 Q4) and enforced in the template CSS, not left to per-popup styling.
+- Minimum type size, contrast, and proportion of popup area are set by Compliance (§18 Q4) and enforced in the template CSS, not left to per-popup styling.
 - If the resolved text does not fit the slot on the smallest supported viewport, the popup **fails validation at publish time** rather than truncating at render time.
 
 That last point is worth building: truncating a risk warning to fit a mobile layout is precisely the failure mode a regulator would penalise.
@@ -1214,9 +1241,65 @@ An hourly job rolls raw events into aggregates; dashboards read only aggregates.
 
 ---
 
-## 15. Operations
+## 15. A/B testing
 
-### 15.1 Alerts
+### 15.1 Model
+
+Popups that share `experiment.group` compete for one traffic slot instead of each showing independently — the group is the test, each popup in it is one variant. `experiment` sits at the top level of the popup object, not inside `content`, for the same reason `targeting`/`trigger`/`frequency` do: it decides *which popup* a given visitor sees, not what that popup displays once chosen (§6.1).
+
+```json
+"experiment": {
+  "group": "hero-cta-test",
+  "variant": "A",
+  "weight": 50,
+  "mode": "manual",
+  "success_metric": "conv_rate",
+  "ends_at": null
+}
+```
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `group` | string, 1–80 chars | — (required) | Identifies the test. Two or more `live` popups sharing a `group` value become variants of one test; a `group` with only one live popup behaves as a normal, un-split popup. |
+| `variant` | string, 1–20 chars | — (required) | Label shown in admin (`"A"`, `"B"`, `"control"`, …). Not exposed to the client beyond the popup's own id. |
+| `weight` | integer, 1–100 | 50 | Relative traffic share within the group. Not required to sum to 100 — three variants at `weight: 50` split 1/3 each, same as `weight: 33` each. |
+| `mode` | `manual` \| `automatic` | `manual` | See §15.3. |
+| `success_metric` | `leads` \| `interactions` \| `conv_rate` | `conv_rate` | Which stat decides the winner in `automatic` mode. Same three definitions Statistics already reports (§14.1) — not a fourth, competing definition of "interaction." |
+| `ends_at` | ISO date-time or `null` | `null` | Required when `mode: "automatic"` (rejected at ingestion otherwise, §13.1) — the deadline resolution checks against. Ignored in `manual` mode. |
+
+Every variant must independently pass the normal schema, targeting, and legal checks (§11.3.3) — an experiment is not a way to bypass validation for one arm of a test. In particular the libertex.com legal fail-safe (§11.3.1) applies per-variant: a `libertex.com` variant cannot set `legal.mode: "off"` even if a sibling variant on a different broker could.
+
+### 15.2 Launch and traffic split — live the moment content is pushed
+
+There is no separate "start the test" action. The instant two or more `live` popups share a `group`, the SDK starts splitting traffic between them on the very next page load — satisfied entirely by the normal publish path (§13.3): push both variants with `status: "live"` and the same `group`, and the test is running. Pausing a variant down to one live popup in the group silently stops the split and reverts the survivor to behaving like an ordinary, un-tested popup — there is no mode flag to flip either way, so archiving/pausing is itself how a test starts or stops.
+
+Client-side selection (`pickVariant()` in `sdk.js`) runs once per config load, before eligibility/targeting is evaluated:
+
+1. Group the config's popups by `experiment.group`; groups of size 1 pass straight through untouched.
+2. For each group of 2+, check the visitor's persisted state (§6.3's `exp` key) for a previously-assigned variant id. If one exists **and** that variant is still in the group, reuse it — a returning visitor is never re-randomized onto a different arm mid-test.
+3. Otherwise pick one weighted-randomly by `weight`, and persist the choice immediately.
+4. Every other variant in that group is filtered out of this pageview's candidate list before targeting/frequency rules even run.
+
+This keeps assignment stable per visitor, not per pageview, with no server round trip: the config bundle already contains every variant, and the split happens entirely against already-fetched data, the same offline-first shape as the rest of the SDK's eligibility logic (§8.1).
+
+### 15.3 Resolution — manual or automatic
+
+A group stays "live" for as long as 2+ of its variants have `status: "live"`; resolving it means pausing every variant except the winner. Losers are **paused, not deleted or archived** — their content, stats, and audit history stay intact, and un-pausing is a normal status change if the call turns out wrong. There is no separate "resolved" flag to track: a group is simply done resolving once it no longer has 2+ live variants.
+
+- **`mode: "manual"`** — an operator or compliance user opens either variant's Popup Settings page, sees the live A/B test card (§12) with running Views/Leads/`success_metric` per variant, and clicks "Declare winner." That variant stays `live`; every sibling is paused immediately.
+- **`mode: "automatic"`** — no admin action needed. The server polls every 5 minutes (plus once at boot, so a deadline that passed while the process was down still resolves on the next restart) for groups whose `ends_at` is in the past, ranks their live variants by `success_metric` over the same 90-day window Statistics itself uses, and pauses everyone but the top-ranked variant.
+
+Both paths funnel through the same resolution function, so a manual override behaves identically to an automatic one — same pause semantics, same audit-log entries (`experiment.variant_paused` per loser, `experiment.resolved` once for the group, §11.3.5), same republish (§13.3) to push the updated `status` out immediately.
+
+### 15.4 Admin visibility
+
+`GET /api/experiments` lists every group with 2+ currently-live variants, each variant's `views`/`leads`/`interactions`/computed `success_metric` value, and whether the group has already resolved. Popup Settings shows this inline as an "A/B test" card whenever the popup being viewed has an `experiment.group` (§12); `POST /api/experiments/:group/resolve` is the manual-resolution endpoint the "Declare winner" button calls, gated the same operator-or-above way as any other popup mutation (§11.3.6).
+
+---
+
+## 16. Operations
+
+### 16.1 Alerts
 
 | Signal | Threshold |
 |---|---|
@@ -1227,14 +1310,14 @@ An hourly job rolls raw events into aggregates; dashboards read only aggregates.
 | Publish failure | any |
 | Unusual update rate from source system | > N/hour (§13.3) |
 
-### 15.2 Runbook
+### 16.2 Runbook
 
 - **Kill everything:** set `window.LxPopup.disabled = true` via a Tealium extension, or publish an empty config. Both work in under 2 minutes — document which is preferred.
 - **Kill one popup:** `POST /v1/popups/{id}/pause`
 - **Rollback:** republish a prior bundle hash from the archive
 - **Bad content live:** pause → fix in source system → republish. Do not edit in place under pressure.
 
-### 15.3 Testing priorities
+### 16.3 Testing priorities
 
 | Layer | Coverage |
 |---|---|
@@ -1249,14 +1332,16 @@ The XSS corpus is the most important suite. Every content field gets `<script>`,
 
 ---
 
-## 16. Delivery phases
+## 17. Delivery phases
 
 | Phase | Scope | Estimate |
 |---|---|---|
 | **0 — Spike** | Tealium tag + SDK rendering one hardcoded popup from static CDN JSON | 2–3 days |
 | **1 — MVP** | `banner` + `modal` templates, ingestion API, path targeting, delay/scroll triggers, frequency caps, impression/click events, admin list + URL tester, **legal registry + auto/off toggle** | 4–5 weeks |
 | **2 — Production** | `modal_media` + `modal_form` (llLanding embed, §9), device overrides, registration-domain + consent-text registries, statistics dashboards, legal audit trail | 2–3 weeks |
-| **3 — Polish** | Exit-intent, data layer targeting, geo variants, `custom` legal mode, A/B if needed | 2–3 weeks |
+| **3 — Polish** | Exit-intent, data layer targeting, geo variants, `custom` legal mode | 2–3 weeks |
+
+A/B testing (§15) shipped ahead of phase 3, alongside the rest of this batch — it turned out to need no new infrastructure beyond the existing config bundle, `localStorage` state, and Statistics aggregation, so there was no reason to defer it.
 
 Roughly **8–11 engineer-weeks** to production, assuming one full-stack engineer with part-time frontend support. The simplified scope — no content editor, no approval workflow, minimal RBAC — is what brings this down from the ~14 weeks a general-purpose platform would need; phase 2 got a further week lighter once §9's rewrite established that registration means embedding the existing llLanding widget, not building our own capture-and-forward backend.
 
@@ -1266,7 +1351,7 @@ The legal registry lands in **phase 1, not later**, adding roughly a week. The `
 
 ---
 
-## 17. Open questions
+## 18. Open questions
 
 | # | Question | Owner | Blocks |
 |---|---|---|---|

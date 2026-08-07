@@ -10,7 +10,7 @@ export default function Templates() {
   return (
     <Card
       title="Templates"
-      subtitle={<>Style guide for all six templates (§5) — rendered through the real SDK, not mockups. Open <Code>{GALLERY_URL}</Code> directly if this frame is blank.</>}
+      subtitle={<>Style guide for all seven templates (§5) — rendered through the real SDK, not mockups. Open <Code>{GALLERY_URL}</Code> directly if this frame is blank.</>}
       right={<Button is="a" href={GALLERY_URL} target="_blank" rel="noopener noreferrer" whiteSpace="nowrap">Open in new tab ↗</Button>}
       bodyPadding={0}
     >

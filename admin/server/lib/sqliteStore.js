@@ -196,6 +196,18 @@ const stmts = {
     FROM raw_events
     WHERE occurred_at >= ?
   `),
+  // Same shape as overviewSummary, scoped to one popup — what an A/B
+  // experiment's automatic winner resolution compares between variants
+  // (lib/experiments.js). Deliberately the same three fields/definitions,
+  // not a fourth reinvention of "interaction".
+  popupEventSummary: db.prepare(`
+    SELECT
+      SUM(CASE WHEN type = 'impression' THEN 1 ELSE 0 END) AS views,
+      SUM(CASE WHEN type = 'form_submit' THEN 1 ELSE 0 END) AS leads,
+      SUM(CASE WHEN type IN ('click','form_start','form_submit','questionnaire_answer','game_result') THEN 1 ELSE 0 END) AS interactions
+    FROM raw_events
+    WHERE popup_id = ? AND occurred_at >= ?
+  `),
   overviewByReferrer: db.prepare(`
     SELECT
       COALESCE(NULLIF(referrer, ''), '(direct)') AS label,
@@ -299,6 +311,10 @@ function overviewSummary(sinceIso) {
   const row = stmts.overviewSummary.get(sinceIso);
   return { views: row.views || 0, leads: row.leads || 0, interactions: row.interactions || 0 };
 }
+function popupEventSummary(popupId, sinceIso) {
+  const row = stmts.popupEventSummary.get(popupId, sinceIso);
+  return { views: row.views || 0, leads: row.leads || 0, interactions: row.interactions || 0 };
+}
 function overviewByReferrer(sinceIso) { return stmts.overviewByReferrer.all(sinceIso); }
 function overviewByPage(sinceIso) { return stmts.overviewByPage.all(sinceIso); }
 function overviewByCountry(sinceIso) { return stmts.overviewByCountry.all(sinceIso); }
@@ -311,5 +327,6 @@ module.exports = {
   insertEvent, eventCountForPopup, eventsForPopupSince, recentEvents,
   questionnaireAnswerCounts,
   overviewSummary, overviewByReferrer, overviewByPage, overviewByCountry,
+  popupEventSummary,
   resetToSeed
 };

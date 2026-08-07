@@ -74,5 +74,10 @@ export const api = {
     revokeApiKey: (id) => request('/settings/api-keys/' + id, { method: 'DELETE' })
   },
 
-  auditLog: () => request('/audit-log')
+  auditLog: () => request('/audit-log'),
+
+  experiments: {
+    list: () => request('/experiments'),
+    resolve: (group, winnerId) => request('/experiments/' + group + '/resolve', { method: 'POST', body: JSON.stringify({ winner_id: winnerId }) })
+  }
 };

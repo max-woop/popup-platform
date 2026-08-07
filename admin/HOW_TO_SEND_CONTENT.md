@@ -151,11 +151,70 @@ All four need the same `X-Timestamp`/`X-Signature` headers as `PUT` (empty
 string for the body portion of the signature on `GET`/`DELETE`/`POST`
 without a body).
 
+## 7. A/B testing (optional)
+
+Nothing to opt into up front — a test starts the moment you `PUT` two (or
+more) `status: "live"` popups that share the same `experiment.group`.
+Each is one variant; whichever isn't paused stays live. There's no
+separate campaign-level object to create first and no separate "launch"
+call — the two `PUT`s above already are the launch.
+
+`experiment` is a top-level field, a sibling of `trigger`/`frequency`/
+`targeting`, not something inside `content` — it decides *which popup* a
+visitor sees, not what that popup displays once picked.
+
+```bash
+# Variant A
+curl -X PUT http://localhost:8787/v1/popups/hero-cta-test-a \
+  -H "Content-Type: application/json" -H "X-Timestamp: ..." -H "X-Signature: ..." \
+  -d '{
+    "name": "Hero CTA test — A",
+    "template_id": "modal",
+    "status": "live",
+    "experiment": { "group": "hero-cta-test", "variant": "A", "weight": 50 },
+    "content": { "heading": "Markets move fast", "cta_label": "View instruments", "cta_url": "https://libertex.com/instruments" }
+  }'
+
+# Variant B — same group, different variant label and content
+curl -X PUT http://localhost:8787/v1/popups/hero-cta-test-b \
+  -H "Content-Type: application/json" -H "X-Timestamp: ..." -H "X-Signature: ..." \
+  -d '{
+    "name": "Hero CTA test — B",
+    "template_id": "modal",
+    "status": "live",
+    "experiment": { "group": "hero-cta-test", "variant": "B", "weight": 50 },
+    "content": { "heading": "Markets move fast", "cta_label": "See what'"'"'s trending", "cta_url": "https://libertex.com/instruments" }
+  }'
+```
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `experiment.group` | string, 1–80 chars, required | — | Same value on every variant in the test. Any string you like — it's never shown to visitors. |
+| `experiment.variant` | string, 1–20 chars, required | — | Your label for this arm (`"A"`, `"control"`, …), shown in the admin UI only. |
+| `experiment.weight` | integer, 1–100 | `50` | Relative traffic share. Doesn't need to sum to 100 across the group. |
+| `experiment.mode` | `"manual"` \| `"automatic"` | `"manual"` | `manual` — someone declares a winner in the admin UI, whenever they want. `automatic` — resolves itself once `ends_at` passes, no admin action needed. |
+| `experiment.success_metric` | `"leads"` \| `"interactions"` \| `"conv_rate"` | `"conv_rate"` | Which stat `automatic` mode ranks variants by. Ignored in `manual` mode. |
+| `experiment.ends_at` | ISO date-time or `null` | `null` | **Required** if `mode: "automatic"` — rejected with a `422` otherwise, since there'd be no deadline to resolve on. |
+
+A visitor who lands on either variant keeps seeing that same one on every
+later visit — assignment is sticky per visitor, not re-rolled per
+pageview. Resolving a test (manually via the admin "Declare winner"
+button, or automatically once `ends_at` passes) pauses every variant
+except the winner — `PATCH`ing their `status` back to `"live"` yourself,
+same as unpausing any other popup, undoes that if needed. Nothing is
+deleted. Every variant still goes through the normal schema/legal checks
+independently — including the `broker: "libertex.com"` fail-safe above —
+so a test is never a way to get non-compliant content live on one arm.
+
+This platform never picks a winner for you unprompted in `manual` mode; if
+you want a fully hands-off test, set `mode: "automatic"` and `ends_at` up
+front. Full design and resolution mechanics: spec §15.
+
 ---
 
 ## Content parameter reference
 
-One table, every field `content` can hold across all six templates — for
+One table, every field `content` can hold across all seven templates — for
 the exact JSON shape per template (which fields go together, full working
 examples), see **Content shape per template** right below this. This table
 is generated from the actual validation schema
@@ -164,19 +223,21 @@ it can't drift from what the API actually accepts.
 
 | Field | Type / limit | Templates | Required |
 |---|---|---|---|
-| `heading` | string, ≤80 chars (≤120 on `banner`) | all six | ✓ everywhere it appears |
+| `heading` | string, ≤80 chars (≤120 on `banner`) | all seven | ✓ everywhere it appears |
 | `subheading` | string, ≤100 chars | `modal` | — |
-| `body` | string, ≤400 chars (`modal`, `modal_media`, `modal_form`) or ≤200 (`questionnaire`, `gamification`) | all except `banner` | — |
-| `cta_label` | string, ≤30 chars | `banner`, `modal`, `modal_media`, `gamification`, `questionnaire.completion` | `modal_media` only |
-| `cta_url` | string, must start `https://` | same as `cta_label` | `modal_media` only |
-| `image_url` | string, must match `https://cdn.libertex.*` — any other host is a `400`, no exceptions | `modal_media` | ✓ |
-| `image_alt` | string, ≤125 chars | `modal_media` | — |
-| `theme` | one of the 18 canonical names — see below | all six | — |
-| `show_logo` | boolean, default `false` | all six | — |
+| `body` | string, ≤400 chars (`modal`, `modal_media`, `modal_form`, `modal_form_media`) or ≤200 (`questionnaire`, `gamification`) | all except `banner` | — |
+| `cta_label` | string, ≤30 chars | `banner`, `modal`, `modal_media`, `modal_form`, `modal_form_media`, `gamification`, `questionnaire.completion` | `modal_media` only |
+| `cta_url` | string, must start `https://` | `banner`, `modal`, `modal_media`, `gamification`, `questionnaire.completion` | `modal_media` only |
+| `image_url` | string, must match `https://cdn.libertex.*` — any other host is a `400`, no exceptions | `modal_media`, `modal_form_media` | ✓ on `modal_media`, optional on `modal_form_media` |
+| `image_alt` | string, ≤125 chars | `modal_media`, `modal_form_media` | — |
+| `theme` | one of the 18 canonical names — see below | all seven | — |
+| `show_logo` | boolean, default `false` | all seven | — |
+| `offer` | string, ≤80 chars — free-text campaign/offer label, shown as its own column on the admin Popups list | all seven | — |
+| `broker` | one of `"libertex.com"`, `"libertex.org"`, `"fxclub.org"`, `"lbx.com"` | all seven | — |
 | `shape` | `"auto"` \| `"square"`, default `"auto"` | `modal` | — |
 | `position` | `"top"` \| `"bottom"`, default `"top"` | `banner` | — |
-| `legal` | object — see **Legal modes** below | all six | — (defaults to `{ "mode": "auto" }`) |
-| `overrides` | object, one key per device — see below | all six | — |
+| `legal` | object — see **Legal modes** below | all seven | — (defaults to `{ "mode": "auto" }`) |
+| `overrides` | object, one key per device — see below | all seven | — |
 | `questions` | array, 1–3 items | `questionnaire` | ✓ |
 | `completion` | object (`heading`/`body`/`cta_label`/`cta_url`) | `questionnaire` | — |
 | `duration_ms` | integer, 2000–15000, default 5000 | `gamification` | — |
@@ -184,10 +245,12 @@ it can't drift from what the API actually accepts.
 | `win_body` / `lose_body` | string, ≤200 chars each | `gamification` | — |
 | `assets` | array, 1–4 items (`symbol`/`label`/`start_price` each) | `gamification` | ✓ |
 
-**`modal_form` has no `cta_url`.** Its button submits the embedded
-registration widget, not a link — see that template's section below for
-why the rest of the form (fields, consent wording) isn't content you send
-at all.
+**`modal_form` and `modal_form_media` have no `cta_url`.** Their button
+submits the embedded registration widget, not a link — see those
+templates' sections below for why the rest of the form (fields, consent
+wording) isn't content you send at all. `modal_form_media` is otherwise
+identical to `modal_form` with one field added, the same way `modal_media`
+is `modal` with one field added.
 
 **Themes:** `orange`, `black`, `white` · `white-black`, `white-orange`,
 `black-white`, `black-orange`, `orange-black`, `orange-white`,
@@ -201,6 +264,14 @@ at all.
 | `auto` (default) | — | Resolves the risk warning from the registry by host+entity. Suppresses the whole popup if nothing resolves (§11.3.3) — never renders promotional content with no warning. |
 | `off` | `off_reason` (string, ≤200) | No legal slot — for genuinely non-promotional content (maintenance notices, etc). Audit-logged. |
 | `custom` | `custom_text` (string, ≤500) | Your exact wording, verbatim — Compliance-restricted in the admin UI, not enforced by this endpoint. |
+
+**`content.broker: "libertex.com"` can never pair with `legal.mode: "off"`.**
+The API rejects that combination with a `422` regardless of who's sending
+the request — the flagship brand's risk warning isn't a per-popup choice
+the way it is for other brokers. This is enforced independently of the
+registry-based resolution `auto` mode does by hostname (§11.3.2/§11.3.3);
+`broker` is a declared label on the popup itself, not derived from
+targeting rules or the visitor's actual host.
 
 **`overrides`** (per-device content swaps): `{ "mobile": {...}, "tablet": {...}, "desktop": {...} }`,
 each a subset of `{ hidden, heading, body, image_url }`. `legal` cannot
@@ -302,6 +373,17 @@ how trustworthy the host looks.
 resolved centrally per domain, not authored per popup; see spec §9 if you
 need to add or change a domain's registration widget, that's a different,
 Compliance-involved change, not something this endpoint controls.
+
+### `modal_form_media`
+```json
+{ "heading": "Open a live account", "body": "Registration takes under two minutes.",
+  "image_url": "https://cdn.libertex.com/promo/registration-hero.webp", "image_alt": "Trading dashboard on a laptop",
+  "cta_label": "Create account", "theme": "white", "legal": { "mode": "auto" } }
+```
+`modal_form` with one field added — `heading` required, `image_url`/
+`image_alt` optional (omit them and it renders exactly like `modal_form`).
+Same fail-safe, same centrally-resolved form: everything in `modal_form`'s
+section above applies here too.
 
 ### `questionnaire`
 ```json

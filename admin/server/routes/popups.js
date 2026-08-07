@@ -9,6 +9,9 @@ const express = require('express');
 const store = require('../lib/store');
 const sqliteStore = require('../lib/sqliteStore');
 const { requireRole, audit, popupSummary, popupDetail, republish } = require('../lib/adminHelpers');
+const { IMAGE_HOST_PATTERN } = require('../lib/ingestSchemas');
+
+const imageHostRe = new RegExp(IMAGE_HOST_PATTERN);
 
 const router = express.Router();
 
@@ -22,7 +25,7 @@ router.get('/popups/:id', function (req, res) {
   res.json(popupDetail(popup));
 });
 
-const EDITABLE_FIELDS = ['name', 'priority', 'starts_at', 'ends_at', 'devices', 'trigger', 'frequency', 'targeting'];
+const EDITABLE_FIELDS = ['name', 'priority', 'starts_at', 'ends_at', 'devices', 'trigger', 'frequency', 'targeting', 'experiment'];
 
 router.patch('/popups/:id', requireRole('operator'), function (req, res) {
   const db = store.load();
@@ -45,7 +48,33 @@ router.patch('/popups/:id', requireRole('operator'), function (req, res) {
     if (nextMode === 'off' && !body.legal.off_reason && !(next.content.legal && next.content.legal.off_reason)) {
       return res.status(422).json({ error: 'validation_failed', details: [{ path: 'legal.off_reason', message: 'required when mode is "off"' }] });
     }
+    // Stronger than the Compliance-gate above: no role can turn this off
+    // for the flagship brand, not just "requires a reason" — same rule the
+    // ingestion API enforces (ingestSchemas.js's validateSemantics), so a
+    // popup can't end up in this state by one path but not the other.
+    if (nextMode === 'off' && next.content.broker === 'libertex.com') {
+      return res.status(422).json({ error: 'validation_failed', details: [{ path: 'legal.mode', message: 'libertex.com content cannot set legal.mode to "off" — the risk warning is mandatory for this broker' }] });
+    }
     next.content.legal = Object.assign({}, next.content.legal, body.legal);
+  }
+
+  // Content is otherwise source-system-owned (§10.1) — this is the one
+  // deliberate, narrow exception (admin/HOW_TO_SEND_CONTENT.md), not a
+  // general "edit any content field" door: only image_url/image_alt, and
+  // image_url still has to pass the same CDN-host allowlist the ingestion
+  // API enforces (ingestSchemas.js's IMAGE_HOST_PATTERN) so this can't
+  // become a way to point a popup at an arbitrary image host by hand.
+  if (body.content && typeof body.content === 'object') {
+    if (Object.prototype.hasOwnProperty.call(body.content, 'image_url')) {
+      const url = body.content.image_url;
+      if (url && !imageHostRe.test(url)) {
+        return res.status(422).json({ error: 'validation_failed', details: [{ path: 'content.image_url', message: 'must be an https://cdn.libertex.* URL' }] });
+      }
+      next.content.image_url = url || '';
+    }
+    if (Object.prototype.hasOwnProperty.call(body.content, 'image_alt')) {
+      next.content.image_alt = String(body.content.image_alt || '').slice(0, 125);
+    }
   }
 
   const now = new Date().toISOString();

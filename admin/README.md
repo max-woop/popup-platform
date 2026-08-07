@@ -178,7 +178,7 @@ toggle) · Targeting (rule builder + URL tester — built first, per §12.1's
 "highest-value feature" call-out) · Statistics · Questionnaires (per-question
 answer counts/percentages for `questionnaire`-template popups, aggregated
 from real `questionnaire_answer` events via `GET /api/questionnaire-stats`)
-· Templates (all six template previews, every theme, §5 — embeds
+· Templates (all seven template previews, every theme, §5 — embeds
 `../../templates.html` via iframe rather than reimplementing the gallery, so
 there's one source of truth) · Legal texts (registry, version history,
 Compliance-only publish) · Registration (registration-domain + consent-text
